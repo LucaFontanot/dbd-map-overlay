@@ -61,7 +61,7 @@ function createWindow () {
         shell.openExternal(url);
         return { action: 'deny' };
     });
-    //win.setMenu(null)
+    win.setMenu(null)
     let overlayWindow = new BrowserWindow({
         width: 0,
         height: 0,
