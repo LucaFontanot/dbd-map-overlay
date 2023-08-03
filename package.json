@@ -1,0 +1,39 @@
+{
+  "name": "dbd-map",
+  "version": "1.0.0",
+  "description": "Overlay for DBD maps",
+  "main": "index.js",
+  "author": "Luca",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "license": "ISC",
+  "build": {
+    "productName":"Dbd Map Overlay",
+    "appId": "com.lucaf.dbdmapoverlay",
+    "win": {
+      "target": ["nsis","portable","msi"]
+    },
+    "files": [
+      "!static/*",
+      "!scripts/*"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^25.3.2",
+    "electron-builder": "^24.6.3"
+  },
+  "dependencies": {
+    "@popperjs/core": "^2.11.8",
+    "axios": "^1.4.0",
+    "bootstrap": "^5.3.1",
+    "cron": "^2.4.0",
+    "image-size": "^1.0.2",
+    "jquery": "^3.7.0",
+    "popper.js": "^1.16.1",
+    "uuid": "^9.0.0"
+  }
+}
