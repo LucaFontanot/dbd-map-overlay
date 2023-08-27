@@ -1,3 +1,5 @@
+[![Github All Releases](https://img.shields.io/github/downloads/LucaFontanot/dbd-map-overlay/total.svg)]()
+
 # Dbd Map Overlay
 Have you ever wasted precious seconds just figuring out how to describe where you are on the map? This is the solution
 
