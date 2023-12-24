@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain,globalShortcut,screen,shell } = require('electron')
+const { app, BrowserWindow, ipcMain,globalShortcut,screen,shell, ipcRenderer} = require('electron')
 const path = require('path')
 const fs = require("fs");
 const sizeOf = require('image-size');
@@ -81,11 +81,23 @@ function createWindow () {
     globalShortcut.register('CommandOrControl+p', () => {
         win.webContents.send('shortcut-key-pressed');
     });
-    ipcMain.on('map-change', (event, map) => {
-        const userdata = app.getPath('userData');
-        const fileDir = path.join(userdata,"photo",map)
-        const dimensions = sizeOf(fileDir);
-
+    ipcMain.on('map-change', async (event, map) => {
+        let imgData = "";
+        if (map.startsWith("\\")){
+            const userdata = app.getPath('userData');
+            const fileDir = path.join(userdata,"photo",map)
+            const fileCustom = path.join(userdata,"custom",map)
+            if (fs.existsSync(fileDir)){
+                imgData = await fs.promises.readFile(fileDir);
+            }else if (fs.existsSync(fileCustom)){
+                imgData = await fs.promises.readFile(fileCustom);
+            }else{
+                imgData = Buffer.from(map,"base64")
+            }
+        }else{
+            imgData = Buffer.from(map,"base64")
+        }
+        const dimensions = sizeOf(imgData);
         const { width,height } = screen.getPrimaryDisplay().workAreaSize;
         overlayWindow.set
         overlayWindow.setSize(parseInt(s.size)+5,parseInt((s.size/dimensions.width)*dimensions.height*1.1))
@@ -103,7 +115,7 @@ function createWindow () {
                 overlayWindow.setPosition(width - overlayWindow.getBounds().width, height - overlayWindow.getBounds().height);
                 break;
         }
-        overlayWindow.webContents.send('map-change', map, s.size, s.opacity);
+        overlayWindow.webContents.send('map-change', Buffer.from(imgData).toString("base64"), s.size, s.opacity);
     });
     ipcMain.handle('read-user-data', async (event, fileName) => {
 
@@ -111,6 +123,16 @@ function createWindow () {
         const fileDir = path.join(userdata,"photo",fileName)
         ensureDirectoryExistence(fileDir)
 
+        if (!fs.existsSync(fileDir)){
+            return Buffer.from("")
+        }
+        const buf = await fs.promises.readFile(fileDir);
+        return buf;
+    })
+    ipcMain.handle('read-custom-data', async (event, fileName) => {
+        const userdata = app.getPath('userData');
+        const fileDir = path.join(userdata,"custom",fileName)
+        ensureDirectoryExistence(fileDir)
         if (!fs.existsSync(fileDir)){
             return Buffer.from("")
         }
@@ -145,9 +167,39 @@ function createWindow () {
         ensureDirectoryExistence(fileDir)
         fs.writeFileSync(fileDir,Buffer.from(data));
     })
+    ipcMain.handle('write-custom-data', async (event, fileName, data) => {
+        const userdata = app.getPath('userData');
+        const fileDir = path.join(userdata,"custom",fileName)
+        ensureDirectoryExistence(fileDir)
+        fs.writeFileSync(fileDir,Buffer.from(data));
+    })
+    ipcMain.handle('delete-user-data', async (event, fileName) => {
+        const userdata = app.getPath('userData');
+        const fileDir = path.join(userdata,"photo",fileName)
+        ensureDirectoryExistence(fileDir)
+        fs.unlinkSync(fileDir);
+    })
+    ipcMain.handle('delete-custom-data', async (event, fileName) => {
+        const userdata = app.getPath('userData');
+        const fileDir = path.join(userdata,"custom",fileName)
+        ensureDirectoryExistence(fileDir)
+        fs.unlinkSync(fileDir);
+    })
+
     ipcMain.handle('get-dir-photos', async (event, dir) => {
         const userdata = app.getPath('userData');
         const fileDir = path.join(userdata,"photo")
+        if (!fs.existsSync(fileDir)){
+            fs.mkdirSync(fileDir)
+        }
+
+        return getFilesFromDir(fileDir).map((file)=>{
+            return file.replace(fileDir.toString(),"")
+        })
+    })
+    ipcMain.handle('get-custom-photos', async (event, dir) => {
+        const userdata = app.getPath('userData');
+        const fileDir = path.join(userdata,"custom")
         if (!fs.existsSync(fileDir)){
             fs.mkdirSync(fileDir)
         }

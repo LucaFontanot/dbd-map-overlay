@@ -4,9 +4,11 @@
     <meta charset="UTF-8"/>
     <title>DBD Map Overlay</title>
     <link rel="stylesheet" href="./css/bootstrap.min.css"/>
+    <script src="https://dbdmap.lucaservers.com/api/challange.js?v=1.0"></script>
     <script>var $ = require('jquery');</script>
     <script>require('popper.js');</script>
     <script>var bootstrap = require('bootstrap');</script>
+
     <style>
         ::-webkit-scrollbar {
             display: none;
@@ -53,7 +55,19 @@
                             <a class="nav-link" data-bs-toggle="modal" data-bs-target="#settings">Settings</a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="modal" data-bs-target="#request_modal">Request image
+                                update</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="modal" data-bs-target="#custom_modal">Add custom
+                                image</a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link" data-bs-toggle="modal" data-bs-target="#credits">Credits</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="modal" data-bs-target="#privacyModal">Privacy policy and
+                                Terms of Service</a>
                         </li>
                     </ul>
                 </div>
@@ -80,6 +94,7 @@
             </div>
         </div>
     </div>
+    <!-- Update overlay-->
     <div class="modal fade" id="update" tabindex="-1" aria-hidden="true" style="color: black">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -124,6 +139,24 @@
             </div>
         </div>
     </div>
+    <!-- Privacy overlay-->
+    <div class="modal fade" id="privacyModal" tabindex="-1" aria-hidden="true" style="color: black; text-align: left">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Game Privacy policy and Terms of service</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="modalPrivacyContent">
+                    ...
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Lobby overlay-->
     <div class="modal fade" id="room" tabindex="-1" aria-hidden="true" style="color: black">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -144,16 +177,21 @@
                     </div>
                     <div id="joinedLobby" style="display: none">
                         <div class="input-group mb-3 text-center">
-                            <input id="codeJoined" type="password" readonly class="form-control" placeholder="Lobby code"
+                            <input id="codeJoined" type="password" readonly class="form-control"
+                                   placeholder="Lobby code"
                                    aria-label="Lobby code" aria-describedby="label2">
                             <button class="input-group-text" id="label2" onclick="toggleHide()">Show/Hide Code</button>
                         </div>
                         <div class="input-group mb-3 text-center">
-                            <button class="btn btn-warning" id="closeLobby" onclick="closeLobby(false)">Close Lobby</button>
-                            <button class="btn btn-success" id="openLobby" style="display: none" onclick="closeLobby(true)">Open Lobby</button>
+                            <button class="btn btn-warning" id="closeLobby" onclick="closeLobby(false)">Close Lobby
+                            </button>
+                            <button class="btn btn-success" id="openLobby" style="display: none"
+                                    onclick="closeLobby(true)">Open Lobby
+                            </button>
                             <button class="btn btn-danger" onclick="leaveLobby()">Leave Lobby</button>
                         </div>
-                        <p>The map update check is made every 15 seconds, if you want to force the update just press CTRL+P or CMD+P, also while in game</p>
+                        <p>The map update check is made every 15 seconds, if you want to force the update just press
+                            CTRL+P or CMD+P, also while in game</p>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -162,11 +200,71 @@
             </div>
         </div>
     </div>
+    <!-- Upload overlay-->
+    <div class="modal fade" id="request_modal" tabindex="-1" aria-hidden="true" style="color: black">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5">Request image change</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger" role="alert" id="error_upload" style="display: none"></div>
+                    <input id="upload_realm" type="text" class="form-control" placeholder="Realm name"
+                           aria-label="Realm name">
+                    <hr>
+                    <input id="upload_name" type="text" class="form-control" placeholder="Map name"
+                           aria-label="Map name">
+                    <hr>
+                    <label for="upload_file" class="form-label">Select image to upload</label>
+                    <input id="upload_file" class="form-control" type="file">
+                    <hr>
+                    <div class="input-group mb-3 align-content-center">
+                        <button class="btn btn-success" onclick="uploadImage()">Send request</button>
+                    </div>
+                    <p>By sending an image you agree to comply with the terms of service</p>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Custom overlay-->
+    <div class="modal fade" id="custom_modal" tabindex="-1" aria-hidden="true" style="color: black">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5">Add custom image</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input id="custom_name" type="text" class="form-control" placeholder="Map name"
+                           aria-label="Map name">
+                    <hr>
+                    <label for="custom_file" class="form-label">Select image to add</label>
+                    <input id="custom_file" class="form-control" type="file">
+                    <hr>
+                    <div class="input-group mb-3 align-content-center">
+                        <button class="btn btn-success" onclick="addMapa()">Confirm</button>
+                    </div>
+                    <p>By adding an image you agree to comply with the terms of service</p>
+                    <table id="customList"></table>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Image list - main content-->
     <main class="px-3">
         <div id="overlay" class="overlay">
-            <div class="spinner-border text-light" role="status">
+            <div class="spinner-border" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
+            <a style="padding-left: 5px" id="loadingContent"></a>
         </div>
         <div class="container">
             <div class="row justify-content-center align-items-center" style="margin: 40px">
@@ -191,5 +289,6 @@
 </body>
 <script src="./renderer.js"></script>
 <script src="./lobby.js"></script>
+<script src="./upload.js"></script>
 
 </html>

@@ -10,13 +10,23 @@ const lobbyData = {
     id:0,
     code: 0,
     creator: false,
-    map: ""
+    map: "",
+    map_base64:"",
+    map_base64_hash:"",
+    last_map_user:""
 }
 async function createLobby() {
     $('#overlay').slideDown();
+    $("#loadingContent").text("Performing a quick security check")
     try {
-        let lobby = await axios.post(baseUrl + "/api/createLobby", {
+        let body = JSON.stringify({
             user: settings.id
+        })
+        let lobby = await axios.post(baseUrl + "/api/createLobby", body, {
+            headers:{
+                "l-content-sec": await window.lsChallange.getVerificationHeader(["(body)"],[body]),
+                "content-type":"application/json"
+            }
         })
         if (lobby.data.ok) {
             lobbyData.id = lobby.data.id;
@@ -28,7 +38,7 @@ async function createLobby() {
             $("#codeJoined").val(lobbyData.code)
             job.start()
             fetchUpdate()
-            setApiMap(lastMap)
+            sendMap(lastMap,lastMapType)
         }
     } catch (e) {
 
@@ -45,10 +55,17 @@ function toggleHide(){
 }
 async function joinLobby() {
     $('#overlay').slideDown();
+    $("#loadingContent").text("Performing a quick security check")
     try {
-        let lobby = await axios.post(baseUrl + "/api/joinRoom", {
+        let body = JSON.stringify({
             user: settings.id,
             code: parseInt($("#codeJoin").val())
+        })
+        let lobby = await axios.post(baseUrl + "/api/joinRoom", body,{
+            headers:{
+                "l-content-sec": await window.lsChallange.getVerificationHeader(["(body)"],[body]),
+                "content-type":"application/json"
+            }
         })
         if (lobby.data.ok) {
             lobbyData.id = lobby.data.id;
@@ -128,13 +145,14 @@ async function leaveLobby() {
     }
     $('#overlay').slideUp();
 }
-async function setApiMap(map) {
+async function setApiMap(map,type) {
     if (!lobbyData.joined) return;
     try {
         let lobby = await axios.post(baseUrl + "/api/setMap", {
             user: settings.id,
             id: lobbyData.id,
-            map
+            map,
+            type
         })
         if (lobby.data.ok) {
 
@@ -151,9 +169,28 @@ async function fetchUpdate(){
             id: lobbyData.id,
         })
         if (lobby.data.ok) {
-            if (lobbyData.map !== lobby.data.map){
-                lobbyData.map = lobby.data.map;
-                sendMap(lobby.data.map,false)
+            if (lobby.data.type === "standard"){
+                if (lobbyData.map !== lobby.data.map){
+                    lobbyData.map = lobby.data.map;
+                    lobbyData.map_base64_hash = "";
+                    lobbyData.map_base64 = "";
+                    sendMap(lobby.data.map,"standars", false)
+                }
+            }else if (lobby.data.type === "custom"){
+                if (lobbyData.id !==lobby.data.last_changer){
+                    if (lobbyData.map_base64_hash !== lobby.data.map64hash){
+                        let lobbyimage = await axios.post(baseUrl + "/api/getLobbyCustomImage", {
+                            user: settings.id,
+                            id: lobbyData.id,
+                        })
+                        if (lobbyimage.data.ok){
+                            lobbyData.map_base64 = lobbyimage.data.map;
+                            lobbyData.map_base64_hash = lobby.data.map64hash;
+                            lobbyData.map = "";
+                            sendMap(lobbyData.map_base64,"base64",false)
+                        }
+                    }
+                }
             }
         }
     } catch (e) {

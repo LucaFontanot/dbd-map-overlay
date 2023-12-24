@@ -1,6 +1,6 @@
 {
   "name": "dbd-map",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Overlay for DBD maps",
   "main": "index.js",
   "author": "Luca",
@@ -12,10 +12,29 @@
   "keywords": [],
   "license": "ISC",
   "build": {
-    "productName":"Dbd Map Overlay",
+    "productName": "Dbd Map Overlay",
     "appId": "com.lucaf.dbdmapoverlay",
+    "linux": {
+      "target": [
+        "deb",
+        "rpm",
+        "snap",
+        "AppImage"
+      ],
+      "category": "Utility",
+      "publish": [
+        {
+          "provider": "generic",
+          "url": "https://dbdmap.lucaservers.com"
+        }
+      ]
+    },
     "win": {
-      "target": ["nsis","portable","msi"]
+      "target": [
+        "nsis",
+        "portable",
+        "msi"
+      ]
     },
     "files": [
       "!static/*",
@@ -33,7 +52,9 @@
     "cron": "^2.4.0",
     "image-size": "^1.0.2",
     "jquery": "^3.7.0",
+    "marked": "^6.0.0",
     "popper.js": "^1.16.1",
+    "sharp": "^0.32.6",
     "uuid": "^9.0.0"
   }
 }
