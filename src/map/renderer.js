@@ -4,7 +4,7 @@ ipcRenderer.on('map-change', async (event, img, size,opacity) => {
     if (url!==null){
         URL.revokeObjectURL(url)
     }
-    let imgData = await ipcRenderer.invoke('read-user-data', img);
+    let imgData = Buffer.from(img,"base64");
     let blob = new Blob([imgData]);
     url = URL.createObjectURL(blob);
     $("#mainImg").attr("src",url).css({

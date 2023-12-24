@@ -24,7 +24,10 @@
 
 7. Contact
    - If you have any questions regarding these Terms, please contact admin@lucaservers.com
-
+8. Images 
+   - Users are prohibited from using the "custom image" or "request image update" feature with illicit images (Gore, Pornography, Harassment, and images unrelated to the program's purpose).
+   - Images used with the "custom image" or "request image update" functions are uploaded to a server, and users bear full responsibility for the confidentiality and content of these images.
+   - The server utilizes AI tools to analyze uploaded images. If unlawful uses (harassment, abuse involving minors, etc.) are detected, the user will be blocked from using the service. Following manual review, we reserve the right to report the incident to the appropriate authorities.
 
 # Privacy Policy for DBD Map Overlay
 
