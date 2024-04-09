@@ -8,12 +8,17 @@ const baseUrl = "https://dbdmap.lucaservers.com"
 let settings = null;
 let lastMap = "";
 let lastMapType = "standard"
+let setting = false;
 ipcRenderer.on('shortcut-key-pressed', async (event) => {
     fetchUpdate()
 });
 var cacheBlob = {};
 var cacheType = {};
 async function sendMap(map, type, api = true) {
+    if (setting) {
+        $("#unset-pos").click();
+    }
+    if (type=== "") return;
     lastMap = map;
     lastMapType = type;
     ipcRenderer.send('map-change', map);
@@ -39,11 +44,13 @@ async function startUpdate() {
         let version = await ipcRenderer.invoke('version')
         if (version !== appUpdate.data.version) {
             var myModal = new bootstrap.Modal(document.getElementById('update'), {
-                keyboard: false
+                keyboard: false,
+                backdrop: 'static',
             })
             $("#updatelink").attr("href", appUpdate.data.url)
             myModal.show()
         }
+        $("#title").text("DBD Map Overlay v" + version)
         let filesUpdate = await axios.get(baseUrl + "/update")
         let imgs = await ipcRenderer.invoke('get-dir-photos')
         for (let file of imgs) {
@@ -152,14 +159,52 @@ async function setPrivacy() {
     try {
         let privacy = await axios.get("https://raw.githubusercontent.com/LucaFontanot/dbd-map-overlay/main/TERMS%20AND%20PRIVACY.md")
         $("#modalPrivacyContent").html(marked.parse(privacy.data))
-    } catch (e) {
-
-    }
+        let faq = await axios.get("https://raw.githubusercontent.com/LucaFontanot/dbd-map-overlay/main/FAQ.md")
+        $("#faqModalContent").html(marked.parse(faq.data))
+    } catch (e) {}
 };
 
 (async function () {
     settings = await ipcRenderer.invoke('get-settings');
+    if (settings.token === "") {
+        try{
+            let token = await axios.get(baseUrl + "/api/register", {
+                responseType:"json"
+            })
+            settings.token = token.data.token;
+            settings.id = token.data.id;
+            await ipcRenderer.invoke('save-settings', settings)
+        }catch (e){
+            console.log(e)
+        }
+    }
+    if (settings.draggable=== true) {
+        $("#positionLabel").prop("disabled", true);
+        $("#dragCheck").prop("checked", true);
+    }else{
+        $("#set-pos").hide();
+    }
     await startUpdate()
+    $("#hiddenCheck").on("input", async function (ev) {
+        var input = $(this);
+        var val = input.prop('checked');
+        settings.hideOverlay = val;
+        await ipcRenderer.invoke('save-settings', settings)
+
+    });
+    $("#dragCheck").on("input", async function (ev) {
+        var input = $(this);
+        var val = input.prop('checked');
+        settings.draggable = val;
+        if (val) {
+            $("#positionLabel").prop("disabled", true);
+            $("#set-pos").show();
+        }else{
+            $("#positionLabel").prop("disabled", false);
+            $("#set-pos").hide();
+        }
+        await ipcRenderer.invoke('save-settings', settings)
+    })
     $("#searchbar").on("input", function (ev) {
         var input = $(this);
         var val = input.val();
@@ -186,7 +231,29 @@ async function setPrivacy() {
         await ipcRenderer.invoke('save-settings', settings)
         sendMap(lastMap,lastMapType)
     }).val(settings.opacity)
+    $("#obsOpen").on("click", function (ev) {
+        ipcRenderer.send('obs-open');
+        sendMap(lastMap,lastMapType)
+    })
+    $("#hide").on("click", function (ev) {
+        sendMap("",lastMapType)
+    })
+    $("#set-pos").on("click", function (ev) {
+        ipcRenderer.send('set-mouse-drag',true);
+        $("#unset-pos").show();
+        $("#set-pos").hide();
+        setting = true;
+    })
+    $("#unset-pos").on("click", function (ev) {
+        ipcRenderer.send('set-mouse-drag',false);
+        $("#unset-pos").hide();
+        $("#set-pos").show();
+        setting = false;
+    })
     await setImages("")
     await generateCustoList()
     await setPrivacy()
+    setTimeout(function () {
+        $('#warning').slideUp();
+    }, 10000);
 })()

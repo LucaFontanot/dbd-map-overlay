@@ -20,7 +20,7 @@ async function createLobby() {
     $("#loadingContent").text("Performing a quick security check")
     try {
         let body = JSON.stringify({
-            user: settings.id
+            user: settings.token
         })
         let lobby = await axios.post(baseUrl + "/api/createLobby", body, {
             headers:{
@@ -58,7 +58,7 @@ async function joinLobby() {
     $("#loadingContent").text("Performing a quick security check")
     try {
         let body = JSON.stringify({
-            user: settings.id,
+            user: settings.token,
             code: parseInt($("#codeJoin").val())
         })
         let lobby = await axios.post(baseUrl + "/api/joinRoom", body,{
@@ -91,7 +91,7 @@ async function closeLobby(status) {
     $('#overlay').slideDown();
     try {
         let lobby = await axios.post(baseUrl + "/api/setCloseStatus", {
-            user: settings.id,
+            user: settings.token,
             id: lobbyData.id,
             status
         })
@@ -122,7 +122,7 @@ async function leaveLobby() {
     $('#overlay').slideDown();
     try {
         let lobby = await axios.post(baseUrl + "/api/leaveRoom", {
-            user: settings.id,
+            user: settings.token,
             id: lobbyData.id,
         })
         if (lobby.data.ok) {
@@ -149,7 +149,7 @@ async function setApiMap(map,type) {
     if (!lobbyData.joined) return;
     try {
         let lobby = await axios.post(baseUrl + "/api/setMap", {
-            user: settings.id,
+            user: settings.token,
             id: lobbyData.id,
             map,
             type
@@ -165,7 +165,7 @@ async function fetchUpdate(){
     if (!lobbyData.joined) return;
     try {
         let lobby = await axios.post(baseUrl + "/api/getLobbyData", {
-            user: settings.id,
+            user: settings.token,
             id: lobbyData.id,
         })
         if (lobby.data.ok) {
@@ -180,7 +180,7 @@ async function fetchUpdate(){
                 if (lobbyData.id !==lobby.data.last_changer){
                     if (lobbyData.map_base64_hash !== lobby.data.map64hash){
                         let lobbyimage = await axios.post(baseUrl + "/api/getLobbyCustomImage", {
-                            user: settings.id,
+                            user: settings.token,
                             id: lobbyData.id,
                         })
                         if (lobbyimage.data.ok){

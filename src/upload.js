@@ -46,7 +46,7 @@ async function uploadImage() {
             throw "Missing realm"
         }
         let body = JSON.stringify({
-            user: settings.id,
+            user: settings.token,
             name: $("#upload_name").val(),
             realm: $("#upload_realm").val(),
             file: await getFileFormBase64($("#upload_file"))
