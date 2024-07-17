@@ -1,33 +1,26 @@
 {
   "name": "dbd-map",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Overlay for DBD maps",
   "main": "index.js",
   "author": "Luca <admin@lucaservers.com>",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder -wl",
+    "build": "electron-builder -wl --publish always",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "license": "ISC",
   "build": {
     "productName": "Dbd Map Overlay",
-    "appId": "com.lucaf.dbdmapoverlay",
+    "appId": "com.github.lucafontanot.dbdmapoverlay",
     "linux": {
       "target": [
         "deb",
         "rpm",
-        "snap",
         "AppImage"
       ],
-      "category": "Games",
-      "publish": [
-        {
-          "provider": "generic",
-          "url": "https://dbdmap.lucaservers.com"
-        }
-      ]
+      "category": "Games"
     },
     "win": {
       "target": [
@@ -43,13 +36,14 @@
   },
   "devDependencies": {
     "electron": "^25.3.2",
-    "electron-builder": "^24.6.3"
+    "electron-builder": "^25.1.8"
   },
   "dependencies": {
     "@popperjs/core": "^2.11.8",
     "axios": "^1.4.0",
     "bootstrap": "^5.3.1",
     "cron": "^2.4.0",
+    "electron-updater": "^6.3.9",
     "image-size": "^1.0.2",
     "jquery": "^3.7.0",
     "marked": "^6.0.0",

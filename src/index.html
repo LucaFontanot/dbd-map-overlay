@@ -13,7 +13,12 @@
         ::-webkit-scrollbar {
             display: none;
         }
-
+        .logalert{
+            display: none;
+            position: fixed;
+            bottom: 0;
+            right: 0;
+        }
         .overlay {
             position: fixed;
             top: 0;
@@ -75,6 +80,9 @@
                         <li class="nav-item">
                             <a class="nav-link" data-bs-toggle="modal" data-bs-target="#faqModal">Frequently Asked Questions</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="modal" data-bs-target="#changelogsModal">Changelogs</a>
+                        </li>
                     </ul>
                 </div>
             </div>
@@ -97,22 +105,6 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- Update overlay-->
-    <div class="modal fade" id="update" style="color: black" data-keyboard="false" data-backdrop="static">
-        <div class="modal-dialog" data-backdrop="static">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h1 class="modal-title fs-5">Update available</h1>
-                </div>
-                <div class="modal-body">
-                    <p>New version available. Please update in order to avoid the app from breaking</p>
-                </div>
-                <div class="modal-footer">
-                    <a id="updatelink" type="button" class="btn btn-success" target="_blank">Update</a>
                 </div>
             </div>
         </div>
@@ -315,6 +307,9 @@
                     </div>
                 </div>
             </div>
+        </div>
+        <div id="logStatus" class="alert alert-info logalert" role="alert">
+
         </div>
     </main>
 </div>

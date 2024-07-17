@@ -3,6 +3,7 @@ const path = require('path')
 const fs = require("fs");
 const sizeOf = require('image-size');
 const uuid = require('uuid');
+const {autoUpdater} = require("electron-updater");
 
 function ensureDirectoryExistence(filePath) {
     var dirname = path.dirname(filePath);
@@ -106,7 +107,7 @@ function createWindow() {
             }
         } else {
             let imgData = "";
-            if (map.startsWith("\\") || map.startsWith("/") ) {
+            if (map.startsWith("\\") || map.startsWith("/")) {
                 const userdata = app.getPath('userData');
                 const fileDir = path.join(userdata, "photo", map)
                 const fileCustom = path.join(userdata, "custom", map)
@@ -141,7 +142,7 @@ function createWindow() {
             }
             if (!s.hideOverlay) {
                 overlayWindow.webContents.send('map-change', Buffer.from(imgData).toString("base64"), s.size, s.opacity, s.draggable);
-            }else{
+            } else {
                 overlayWindow.webContents.send('map-change', Buffer.from("").toString("base64"), s.size, s.opacity, s.draggable);
             }
             if (obsWindow !== null) {
@@ -198,7 +199,7 @@ function createWindow() {
         id: uuid.v4(),
         draggable: false,
         hideOverlay: false,
-        token:""
+        token: ""
     };
     ipcMain.handle('get-settings', async (event) => {
         const userdata = app.getPath('userData');
@@ -283,6 +284,39 @@ function createWindow() {
             obsWindow.close()
         }
     })
+
+    function sendUpdateStatusToWindow(text) {
+        win.webContents.send('update-message', text);
+    }
+    autoUpdater.on('checking-for-update', () => {
+        sendUpdateStatusToWindow('Checking for update...');
+    })
+    autoUpdater.on('update-available', (info) => {
+        sendUpdateStatusToWindow('Update available.');
+    })
+    autoUpdater.on('update-not-available', (info) => {
+        sendUpdateStatusToWindow('Update not available.');
+    })
+    autoUpdater.on('error', (err) => {
+        sendUpdateStatusToWindow('Error in auto-updater. ' + err);
+    })
+    autoUpdater.on('download-progress', (progressObj) => {
+        let log_message = "Download speed: " + parseInt(progressObj.bytesPerSecond/1024) + "KB/s";
+        log_message = log_message + ' - Downloaded ' + parseInt(progressObj.percent) + '%';
+        sendUpdateStatusToWindow(log_message);
+    })
+    autoUpdater.on('update-downloaded', (info) => {
+        sendUpdateStatusToWindow('Update downloaded. Restart the app to install.');
+    });
+    Object.defineProperty(app, 'isPackaged', {
+        get() {
+            return true;
+        }
+    });
+    setTimeout(() => {
+        sendUpdateStatusToWindow('Checking for update...');
+        autoUpdater.checkForUpdatesAndNotify();
+    },2000);
 }
 
 app.whenReady().then(() => {
