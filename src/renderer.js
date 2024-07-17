@@ -38,11 +38,23 @@ function computeMD5(fileBuffer) {
     return hashSum.digest('hex');
 }
 
+function checkVersion(cur,lat){
+    if(cur.length !== lat.length){
+        return true;
+    }
+    for (let i = 0; i < cur.length; i++) {
+        if (parseInt(cur[i]) < parseInt(lat[i])) {
+            return true;
+        }
+    }
+    return false;
+}
+
 async function startUpdate() {
     try {
         let appUpdate = await axios.get(baseUrl + "/version")
         let version = await ipcRenderer.invoke('version')
-        if (version !== appUpdate.data.version) {
+        if (checkVersion(version.split("."),appUpdate.data.version.split("."))) {
             var myModal = new bootstrap.Modal(document.getElementById('update'), {
                 keyboard: false,
                 backdrop: 'static',

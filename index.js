@@ -106,7 +106,7 @@ function createWindow() {
             }
         } else {
             let imgData = "";
-            if (map.startsWith("\\")) {
+            if (map.startsWith("\\") || map.startsWith("/") ) {
                 const userdata = app.getPath('userData');
                 const fileDir = path.join(userdata, "photo", map)
                 const fileCustom = path.join(userdata, "custom", map)

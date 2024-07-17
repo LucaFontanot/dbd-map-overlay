@@ -3,7 +3,7 @@ async function getFileFormBase64(file) {
     return new Promise(function (resolve) {
         var fileReader = new FileReader();
         fileReader.onload = function () {
-            resolve(fileReader.result.replace("data:image/jpeg;base64,", ""));
+            resolve(fileReader.result.split("base64,")[1]);
         };
         fileReader.onerror = function () {
             resolve(false);
