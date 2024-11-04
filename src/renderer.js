@@ -84,10 +84,15 @@ async function startUpdate() {
             let photoPath = file.filePath.split("/static/")
             let result = await ipcRenderer.invoke('read-user-data', photoPath[1])
             if (computeMD5(result) !== file.md5) {
-                let imageBuff = await axios.get(file.filePath + "?t=" + file.md5, {
-                    responseType: "arraybuffer"
-                })
-                await ipcRenderer.invoke('write-user-data', photoPath[1], imageBuff.data)
+                try{
+                    let imageBuff = await axios.get(file.filePath + "?t=" + file.md5, {
+                        responseType: "arraybuffer",
+                        timeout: 5000
+                    })
+                    await ipcRenderer.invoke('write-user-data', photoPath[1], imageBuff.data)
+                }catch (e){
+                    console.warn("Error downloading file: " + file.filePath)
+                }
             }
         }
     } catch (e) {
