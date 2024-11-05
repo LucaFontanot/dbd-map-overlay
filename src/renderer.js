@@ -4,7 +4,7 @@ const crypto = require("crypto");
 const marked = require("marked");
 
 const baseUrl = "https://dbdmap.lucaservers.com"
-//const baseUrl = "http://localhost:4444"
+const githubBaseUrl = "https://raw.githubusercontent.com/LucaFontanot/dbd-map-overlay/refs/heads/generated-pictures/"
 let settings = null;
 let lastMap = "";
 let lastMapType = "standard"
@@ -67,14 +67,14 @@ async function startUpdate() {
     try {
         let version = await ipcRenderer.invoke('version')
         $("#title").text("DBD Map Overlay v" + version)
-        let filesUpdate = await axios.get(baseUrl + "/update")
+        let filesUpdate = await axios.get(githubBaseUrl + "/images.json?t="+ new Date().getTime())
         let imgs = await ipcRenderer.invoke('get-dir-photos')
         for (let file of imgs) {
             let fixWinPath = file.replace(/\\/g, "/")
             let found = false;
             for (let cloud of filesUpdate.data) {
-                let photoPath = cloud.filePath.split("/static")
-                if (photoPath[1] === fixWinPath) {
+                let photoPath = cloud.filePath.substr(4)
+                if (photoPath === fixWinPath) {
                     found = true;
                 }
             }
@@ -85,15 +85,15 @@ async function startUpdate() {
         for (let file of filesUpdate.data) {
             let log = file.filePath.replace(/\\/g, "/").split("/")
             $("#loadingContent").text("Updating " + log[log.length - 1])
-            let photoPath = file.filePath.split("/static/")
-            let result = await ipcRenderer.invoke('read-user-data', photoPath[1])
+            let photoPath = file.filePath.substr(5)
+            let result = await ipcRenderer.invoke('read-user-data', photoPath)
             if (computeMD5(result) !== file.md5) {
                 try{
-                    let imageBuff = await axios.get(file.filePath + "?t=" + file.md5, {
+                    let imageBuff = await axios.get(githubBaseUrl+file.filePath + "?md5=" + file.md5, {
                         responseType: "arraybuffer",
                         timeout: 5000
                     })
-                    await ipcRenderer.invoke('write-user-data', photoPath[1], imageBuff.data)
+                    await ipcRenderer.invoke('write-user-data', photoPath, imageBuff.data)
                 }catch (e){
                     console.warn("Error downloading file: " + file.filePath)
                 }
@@ -178,10 +178,14 @@ async function setImages(filter) {
 
 async function setPrivacy() {
     try {
-        let privacy = await axios.get("https://raw.githubusercontent.com/LucaFontanot/dbd-map-overlay/main/TERMS%20AND%20PRIVACY.md")
+        let privacy = await axios.get("https://raw.githubusercontent.com/LucaFontanot/dbd-map-overlay/master/TERMS%20AND%20PRIVACY.md")
         $("#modalPrivacyContent").html(marked.parse(privacy.data))
-        let faq = await axios.get("https://raw.githubusercontent.com/LucaFontanot/dbd-map-overlay/main/FAQ.md")
+        let faq = await axios.get("https://raw.githubusercontent.com/LucaFontanot/dbd-map-overlay/master/FAQ.md")
         $("#faqModalContent").html(marked.parse(faq.data))
+        let changelogs = await axios.get("https://raw.githubusercontent.com/LucaFontanot/dbd-map-overlay/master/CHANGELOG.md")
+        $("#changelogsContent").html(marked.parse(changelogs.data))
+        let credits = await axios.get("https://raw.githubusercontent.com/LucaFontanot/dbd-map-overlay/master/CREDITS.md")
+        $("#creditsContent").html(marked.parse(credits.data))
     } catch (e) {}
 };
 

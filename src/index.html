@@ -35,6 +35,9 @@
         #results > div {
             margin: 2px 0;
         }
+        .modal-xxl {
+            max-width: 90vw !important;
+        }
     </style>
 </head>
 <body class="d-flex h-100 text-center text-bg-dark">
@@ -63,8 +66,7 @@
                             <a class="nav-link" data-bs-toggle="modal" data-bs-target="#settings">Settings</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" data-bs-toggle="modal" data-bs-target="#request_modal">Request image
-                                update</a>
+                            <a class="nav-link" target="_blank" href="https://github.com/LucaFontanot/dbd-map-overlay/blob/master/CONTRIBUTE.md">Update global images (contribute)</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" data-bs-toggle="modal" data-bs-target="#custom_modal">Add custom
@@ -97,11 +99,8 @@
                     <h1 class="modal-title fs-5">Credits</h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body">
-                    <p>3D maps by <a href="https://steamcommunity.com/sharedfiles/filedetails/?id=2899093390"
-                                     target="_blank">SamoelColt</a></p><br>
-                    <p>2D basic maps by <a href="https://discord.com/invite/hens333" target="_blank">Hens333</a></p><br>
-                    <p>2D iconographic maps by <a href="https://dbdmaps.com/" target="_blank">EagerFace</a></p>
+                <div class="modal-body" id="creditsContent">
+                    ...
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -148,10 +147,10 @@
     </div>
     <!-- Privacy overlay-->
     <div class="modal fade" id="privacyModal" tabindex="-1" aria-hidden="true" style="color: black; text-align: left">
-        <div class="modal-dialog modal-xl">
+        <div class="modal-dialog modal-xxl">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Frequently Asked Questions</h5>
+                    <h5 class="modal-title">Game Privacy policy and Terms of service</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body" id="modalPrivacyContent">
@@ -168,10 +167,27 @@
         <div class="modal-dialog modal-xxl">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Game Privacy policy and Terms of service</h5>
+                    <h5 class="modal-title">Frequently Asked Questions</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body" id="faqModalContent">
+                    ...
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- FAQ overlay-->
+    <div class="modal fade" id="changelogsModal" tabindex="-1" aria-hidden="true" style="color: black; text-align: left">
+        <div class="modal-dialog modal-xxl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Cangelog</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="changelogsContent">
                     ...
                 </div>
                 <div class="modal-footer">

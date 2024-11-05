@@ -1,3 +1,8 @@
+## 1.2.3
+- Integration of the maps directly from the Github repository
+- Api migration
+- Maps Contribution page
+
 ## 1.2.2
 - Fixed a bug with downloading of images that could cause the app to go on an indefinite loop
 - Added Changelog
