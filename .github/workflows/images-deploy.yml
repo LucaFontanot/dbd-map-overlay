@@ -24,7 +24,7 @@ jobs:
           git checkout -B generated-pictures
       - name: Remove all files except images.json and maps/*
         run: |
-          find . -not -path "./maps*" -not -name "images.json" -not -path "./.git*" -not -name "." -exec rm -rf {} +
+          find . -not -path "./maps*" -not -name "images.json" -not -path "./.git*" -not -name "." -exec git rm -r {} +
       - name: Add and commit files
         run: |
           git add maps/*
