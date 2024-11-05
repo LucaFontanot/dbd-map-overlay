@@ -9,7 +9,7 @@ At the end you should have a project like this: `https://github.com/<YOUR-USERNA
 ## Clone the project on your computer
 Open a terminal and run the following command:
 ```bash
-https://github.com/<YOUR-USERNAME>/dbd-map-overlay
+git clone https://github.com/<YOUR-USERNAME>/dbd-map-overlay
 ```
 This will create a copy of the project on your computer on the folder `dbd-map-overlay`
 
