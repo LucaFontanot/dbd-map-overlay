@@ -15,7 +15,7 @@ async function getFileFormBase64(file) {
 async function resizeImage(buffer) {
     return new Promise(function (resolve) {
         var sharp = require('sharp');
-        try{
+        try {
             sharp(buffer)
                 .resize(1920)
                 .toBuffer(async (err, buff, info) => {
@@ -23,50 +23,13 @@ async function resizeImage(buffer) {
                         return resolve(false);
                     }
                     resolve(buff)
-                }).on("error",() => {
+                }).on("error", () => {
                 return resolve(false);
             });
-        }catch (e){
+        } catch (e) {
             return resolve(false);
         }
     })
-}
-
-async function uploadImage() {
-    $('#overlay').slideDown();
-    $("#loadingContent").text("Form check...")
-    try {
-        if ($("#upload_file").prop('files').length === 0) {
-            throw "Missing upload file"
-        }
-        if ($("#upload_name").val().length === 0) {
-            throw "Missing name"
-        }
-        if ($("#upload_realm").val().length === 0) {
-            throw "Missing realm"
-        }
-        let body = JSON.stringify({
-            user: settings.token,
-            name: $("#upload_name").val(),
-            realm: $("#upload_realm").val(),
-            file: await getFileFormBase64($("#upload_file"))
-        })
-        $("#loadingContent").text("Performing a quick security check")
-        await axios.post(baseUrl + "/api/uploadRequest", body, {
-            headers: {
-                "l-content-sec": await window.lsChallange.getVerificationHeader(["(body)"], [body]),
-                "content-type": "application/json"
-            }
-        })
-        $("#upload_realm").val("")
-        $("#upload_name").val("")
-        $("#upload_file").val('')
-    } catch (e) {
-        $("#error_upload").text(e.toString())
-        $("#error_upload").slideDown();
-    }
-
-    $('#overlay').slideUp();
 }
 
 async function addMapa() {
