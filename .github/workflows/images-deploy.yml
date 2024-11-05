@@ -19,6 +19,8 @@ jobs:
         run: node picture-hash.js > images.json
       - name: Create or reset branch
         run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
           git checkout -B generated-pictures
       - name: Add and commit files
         run: |
