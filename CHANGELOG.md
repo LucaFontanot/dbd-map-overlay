@@ -1,3 +1,6 @@
+## 1.2.4
+- Updated dependencies
+
 ## 1.2.3
 - Integration of the maps directly from the Github repository
 - Api migration

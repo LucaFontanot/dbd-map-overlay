@@ -57,7 +57,7 @@ function createWindow() {
             contextIsolation: false
         },
         title: "DBD Map Overlay",
-        icon: path.join(__dirname, "build", "icon.png")
+        icon: path.join(__dirname, "build", "icon.png"),
     })
     win.loadFile('src/index.html')
 
