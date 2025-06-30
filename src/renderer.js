@@ -9,6 +9,8 @@ let settings = null;
 let lastMap = "";
 let lastMapType = "standard"
 let setting = false;
+let mapDictionary = []
+let pathLookup = []
 ipcRenderer.on('shortcut-key-pressed', async (event) => {
     fetchUpdate()
 });
@@ -128,53 +130,131 @@ async function generateCustoList(){
         }
     }
 }
-async function setImages(filter) {
+
+function searchMaps(name = '', creator = '') {
+  const results = [];
+
+  const nameLower = name.toLowerCase();
+  const creatorLower = creator.toLowerCase();
+
+  Object.entries(mapDictionary).forEach(([cr, realms]) => {
+    if (creator && !cr.toLowerCase().includes(creatorLower)) return;
+
+    Object.entries(realms).forEach(([rl, maps]) => {
+      maps.forEach(mapName => {
+        const combined = `${mapName} ${rl}`.toLowerCase();
+
+        if (name && !combined.includes(nameLower)) return;
+
+        const key = `${cr}/${rl}/${mapName}`;
+        results.push({
+          creator: cr,
+          realm: rl,
+          name: mapName,
+          path: pathLookup[key] || null,
+        });
+      });
+    });
+  });
+
+  return results;
+}
+
+
+async function loadImages() {
     let imgs = await ipcRenderer.invoke('get-dir-photos')
     let imgs_custom = await ipcRenderer.invoke('get-custom-photos')
-
-    $("#results").html("");
-    $("#loadingContent").text("Generating Cache")
     imgs = imgs_custom.concat(imgs)
-    for (let img of imgs) {
-        if (filter !== "") {
-            let words = filter.split(" ");
-            let valid = false;
-            for (let word of words) {
-                if (img.toString().toLowerCase().includes(word.toString().toLowerCase())) {
-                    valid = true;
-                }
-            }
-            if (!valid) {
-                continue;
-            }
-        }
+
+    mapDictionary = await buildMapDictionary(imgs)
+}
+
+async function buildMapDictionary(paths) {
+  const result = {};
+
+  paths.forEach(path => {
+    const parts = path.split("/");
+    const creator = parts[1];
+    const realm = parts[2];
+    const mapName = parts[3];
+
+    if (!result[creator]) result[creator] = {};
+    if (!result[creator][realm]) result[creator][realm] = [];
+    result[creator][realm].push(mapName);
+
+    const key = `${creator}/${realm}/${mapName}`;
+    pathLookup[key] = path
+  });
+
+  return result;
+}
+
+async function setImages(filter = "", realm = "") {
+    await loadImages()
+
+    if ($("#creatorSelect option").length === 1) {
+        $("#creatorSelect").empty();
+
+        $("#creatorSelect").append(`<option value="">Select Creator</option>`);
+
+        const creators = Object.keys(mapDictionary);
+        creators.forEach(creator => {
+            $("#creatorSelect").append(`<option value="${creator}">${creator}</option>`);
+        });
+    }
+
+    
+    $("#results").html("");
+    $("#loadingContent").text("Generating Cache");
+
+    let creator = $("#creatorSelect").val();
+
+    const results = searchMaps(filter, creator, realm);
+
+    for (let result of results) {
+        const img = result.path;
+        if (!img) continue;
+
         let url = "";
         let type = "standard";
+
         if (cacheBlob.hasOwnProperty(img)) {
-            url = cacheBlob[img]
-            type = cacheType[img]
+            url = cacheBlob[img];
+            type = cacheType[img];
         } else {
             let imgData = await ipcRenderer.invoke('read-user-data', img);
-            if (imgData.length === 0) {
+            if (!imgData || imgData.length === 0) {
                 imgData = await ipcRenderer.invoke('read-custom-data', img);
                 type = "custom";
             }
-            let blob = new Blob([imgData]);
+
+            const blob = new Blob([imgData]);
             url = URL.createObjectURL(blob);
             cacheBlob[img] = url;
             cacheType[img] = type;
         }
-        $("#results").append(`<div class="col-md-4"><img src="${url}" data-img="${img}" class="img-fluid" data-type="${type}"/><span>${img.replace(/\\/g, " ").replace(/\//g, " ").split(".")[0]}</span></div>`)
+        const mapName = result.name ? result.name.replace(/\.[^/.]+$/, "") : "Unknown Map";
+        $("#results").append(`
+            <div class="col-md-4 mb-4 text-center">
+                <img src="${url}" data-img="${img}" class="img-fluid rounded shadow-sm mb-2" data-type="${type}"/>
+                <div class="small">
+                    <strong>${mapName}</strong><br/>
+                    <span>${result.realm}</span><br/>
+                    <em>${result.creator}</em>
+                </div>
+            </div>
+        `);
     }
+
     $("#results img").click(function (ev) {
-        var input = $(this);
-        let img = input.attr("data-img");
-        let type = input.attr("data-type");
-        sendMap(img,type)
-    })
-    $("#loadingContent").text("")
+        const img = $(this).attr("data-img");
+        const type = $(this).attr("data-type");
+        sendMap(img, type);
+    });
+
+    $("#loadingContent").text("");
     $('#overlay').slideUp();
-};
+}
 
 async function setPrivacy() {
     try {
@@ -233,6 +313,10 @@ async function setPrivacy() {
     $("#searchbar").on("input", function (ev) {
         var input = $(this);
         var val = input.val();
+        setImages(val)
+    })
+    $("#creatorSelect").on("input", function (ev) {
+        var val = $("#searchbar").val();
         setImages(val)
     })
     $("#sizeRange").on("input", async function (ev) {
