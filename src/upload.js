@@ -1,4 +1,3 @@
-
 async function getFileFormBase64(file) {
     return new Promise(function (resolve) {
         var fileReader = new FileReader();
@@ -35,7 +34,7 @@ async function resizeImage(buffer) {
 async function addMapa() {
     const {ipcRenderer} = require("electron");
     $('#overlay').slideDown();
-    $("#loadingContent").text("Form check...")
+    $("#loadingContent").text("Saving...")
     try {
         if ($("#custom_file").prop('files').length === 0) {
             throw "Missing upload file"
@@ -47,14 +46,18 @@ async function addMapa() {
         if (imageBase64 !== false) {
             let imageBuffer = Buffer.from(imageBase64, "base64")
             let resize = await resizeImage(imageBuffer);
-            if (resize!==false){
+            if (resize !== false) {
                 let name = $("#custom_name").val()
-                name = name.replace(/\//g," ");
-                name = name.replace(/\\/g," ");
-                name = name.replace(/\./g," ");
-                await ipcRenderer.invoke('write-custom-data', name +".png",resize)
+                name = name.replace(/\//g, " ");
+                name = name.replace(/\\/g, " ");
+                name = name.replace(/\./g, " ");
+                await ipcRenderer.invoke('write-custom-data', name + ".png", resize)
                 await window.setImages("")
+            } else {
+                console.log("Error resizing image")
             }
+        } else {
+            console.log("Error reading file")
         }
         $("#custom_name").val("")
         $("#custom_file").val("")
