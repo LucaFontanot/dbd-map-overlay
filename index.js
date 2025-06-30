@@ -65,7 +65,7 @@ function createWindow() {
         shell.openExternal(url);
         return {action: 'deny'};
     });
-    win.setMenu(null)
+    //win.setMenu(null)
     let overlayWindow = new BrowserWindow({
         width: 0,
         height: 0,
@@ -295,10 +295,10 @@ function createWindow() {
         sendUpdateStatusToWindow('Update available.');
     })
     autoUpdater.on('update-not-available', (info) => {
-        sendUpdateStatusToWindow('Update not available.');
+        sendUpdateStatusToWindow('App is up to date.');
     })
     autoUpdater.on('error', (err) => {
-        sendUpdateStatusToWindow('Error in auto-updater. ' + err);
+        sendUpdateStatusToWindow('Error while updating: ' + err);
     })
     autoUpdater.on('download-progress', (progressObj) => {
         let log_message = "Download speed: " + parseInt(progressObj.bytesPerSecond/1024) + "KB/s";
@@ -306,7 +306,7 @@ function createWindow() {
         sendUpdateStatusToWindow(log_message);
     })
     autoUpdater.on('update-downloaded', (info) => {
-        sendUpdateStatusToWindow('Update downloaded. Restart the app to install.');
+        sendUpdateStatusToWindow('Update downloaded. The will update on next restart.');
     });
     Object.defineProperty(app, 'isPackaged', {
         get() {
@@ -314,7 +314,7 @@ function createWindow() {
         }
     });
     setTimeout(() => {
-        sendUpdateStatusToWindow('Checking for update...');
+        sendUpdateStatusToWindow('Checking for updates...');
         autoUpdater.checkForUpdatesAndNotify();
     },2000);
 }

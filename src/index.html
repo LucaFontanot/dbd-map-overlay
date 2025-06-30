@@ -13,12 +13,14 @@
         ::-webkit-scrollbar {
             display: none;
         }
-        .logalert{
+
+        .logalert {
             display: none;
             position: fixed;
             bottom: 0;
             right: 0;
         }
+
         .overlay {
             position: fixed;
             top: 0;
@@ -35,6 +37,7 @@
         #results > div {
             margin: 2px 0;
         }
+
         .modal-xxl {
             max-width: 90vw !important;
         }
@@ -47,7 +50,8 @@
         <nav class="navbar bg-dark border-bottom border-body" data-bs-theme="dark">
             <div class="container-fluid">
                 <div class="alert alert-warning alert-dismissible fade show" role="alert" id="warning">
-                    If you are having issues displaying the map with the game in fullscreen mode, please read the "Frequently Asked Questions" in the menu.
+                    If you are having issues displaying the map with the game in fullscreen mode, please read the
+                    "Frequently Asked Questions" in the menu.
                 </div>
                 <a class="navbar-brand" href="#" id="title">DBD Map Overlay</a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarText"
@@ -66,7 +70,9 @@
                             <a class="nav-link" data-bs-toggle="modal" data-bs-target="#settings">Settings</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" target="_blank" href="https://github.com/LucaFontanot/dbd-map-overlay/blob/master/CONTRIBUTE.md">Update global images (contribute)</a>
+                            <a class="nav-link" target="_blank"
+                               href="https://github.com/LucaFontanot/dbd-map-overlay/blob/master/CONTRIBUTE.md">Update
+                                global images (contribute)</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" data-bs-toggle="modal" data-bs-target="#custom_modal">Add custom
@@ -80,7 +86,8 @@
                                 Terms of Service</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" data-bs-toggle="modal" data-bs-target="#faqModal">Frequently Asked Questions</a>
+                            <a class="nav-link" data-bs-toggle="modal" data-bs-target="#faqModal">Frequently Asked
+                                Questions</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" data-bs-toggle="modal" data-bs-target="#changelogsModal">Changelogs</a>
@@ -136,7 +143,8 @@
                         <button class="btn btn-dark" id="set-pos">Set position</button>
                         <button class="btn btn-dark" id="unset-pos" style="display: none">Stop setting position</button>
                     </div>
-                    <p>To set the position of the overlay. First set any map. Then start setting the position. Then use the mouse to move the window. At the end press "Stop setting position"</p>
+                    <p>To set the position of the overlay. First set any map. Then start setting the position. Then use
+                        the mouse to move the window. At the end press "Stop setting position"</p>
                     <p>Forgetting to stop setting position may result in the mouse having issue while in game</p>
                 </div>
                 <div class="modal-footer">
@@ -180,7 +188,8 @@
         </div>
     </div>
     <!-- FAQ overlay-->
-    <div class="modal fade" id="changelogsModal" tabindex="-1" aria-hidden="true" style="color: black; text-align: left">
+    <div class="modal fade" id="changelogsModal" tabindex="-1" aria-hidden="true"
+         style="color: black; text-align: left">
         <div class="modal-dialog modal-xxl">
             <div class="modal-content">
                 <div class="modal-header">
@@ -256,7 +265,7 @@
                     <input id="custom_file" class="form-control" type="file">
                     <hr>
                     <div class="input-group mb-3 align-content-center">
-                        <button class="btn btn-success" onclick="addMapa()">Confirm</button>
+                        <button class="btn btn-success" onclick="addCustomMap()">Confirm</button>
                     </div>
                     <p>By adding an image you agree to comply with the terms of service</p>
                     <table id="customList"></table>
@@ -277,16 +286,17 @@
         </div>
         <div class="container">
             <div class="row justify-content-center align-items-center" style="margin: 40px">
-                    <div class="input-group mb-3 m">
-                        <select class="form-select" id="creatorSelect" style="max-width: 200px; border-top-right-radius: 0; border-bottom-right-radius: 0;">
-                            <option value="">Select Creator</option>
-                        </select>
-                        <input type="text" class="form-control" placeholder="Search for map..." aria-label="Map search"
-                               aria-describedby="searchButton" id="searchbar">
-                        <button class="btn btn-secondary" type="button" id="searchButton">Search</button>
-                        <button class="btn btn-success" type="button" id="obsOpen">Open OBS window</button>
-                        <button class="btn btn-danger" type="button" id="hide">Hide Map</button>
-                    </div>
+                <div class="input-group mb-3 m">
+                    <select class="form-select" id="creatorSelect"
+                            style="max-width: 200px; border-top-right-radius: 0; border-bottom-right-radius: 0;">
+                        <option value="">Select Creator</option>
+                    </select>
+                    <input type="text" class="form-control" placeholder="Search for map..." aria-label="Map search"
+                           aria-describedby="searchButton" id="searchbar">
+                    <button class="btn btn-secondary" type="button" id="searchButton">Search</button>
+                    <button class="btn btn-success" type="button" id="obsOpen">Open OBS window</button>
+                    <button class="btn btn-danger" type="button" id="hide">Hide Map</button>
+                </div>
             </div>
             <div class="row justify-content-center">
                 <div class="col-md-8">
@@ -303,7 +313,4 @@
 </div>
 </body>
 <script src="./renderer.js"></script>
-<script src="./lobby.js"></script>
-<script src="./upload.js"></script>
-
 </html>
