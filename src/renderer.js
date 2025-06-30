@@ -112,9 +112,9 @@ async function deleteImage(img){
     let src = input.attr("data-img");
     await ipcRenderer.invoke('delete-custom-data', src)
     await setImages("")
-    await generateCustoList()
+    await generateCustomList()
 }
-async function generateCustoList(){
+async function generateCustomList(){
     $("#customList").html("");
     let imgs_custom = await ipcRenderer.invoke('get-custom-photos')
     for (let img of imgs_custom) {
@@ -174,9 +174,19 @@ async function buildMapDictionary(paths) {
 
   paths.forEach(path => {
     const parts = path.split("/");
-    const creator = parts[1];
-    const realm = parts[2];
-    const mapName = parts[3];
+
+    let creator, realm, mapName;
+
+    if (parts.length < 4){
+        // If the path does not have enough parts, we assume it's a custom map
+        creator = "Custom";
+        realm = "Custom";
+        mapName = parts[0];
+    }else{
+        creator = parts[1];
+        realm = parts[2];
+        mapName = parts[3];
+    }
 
     if (!result[creator]) result[creator] = {};
     if (!result[creator][realm]) result[creator][realm] = [];
@@ -360,7 +370,7 @@ async function setPrivacy() {
         setting = false;
     })
     await setImages("")
-    await generateCustoList()
+    await generateCustomList()
     await setPrivacy()
     setTimeout(function () {
         $('#warning').slideUp();
