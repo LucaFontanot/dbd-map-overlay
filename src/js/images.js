@@ -90,10 +90,10 @@ class Images {
         const thisRef = this;
         $("#obsOpen").on("click", function (ev) {
             ipcRenderer.send('obs-open');
-            thisRef.sendMap(lastMap, lastMapType)
+            thisRef.sendMap(this.lastMap, this.lastMapType)
         })
         $("#hide").on("click", function (ev) {
-            thisRef.sendMap("", lastMapType)
+            thisRef.sendMap("", this.lastMapType)
         })
         $("#searchbar").on("input", function (ev) {
             thisRef.displayImages($(this).val())

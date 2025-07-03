@@ -7,6 +7,7 @@ const Custom = require("./js/custom.js");
 const Privacy = require("./js/privacy.js");
 const {BASEURL} = require("./js/consts");
 const Images = require("./js/images.js");
+const Hotkeys = require("./js/hotkeys.js")
 const Options = require("./js/options.js");
 
 let timeoutHide = null;
@@ -40,6 +41,12 @@ const settings = new Settings(api);
 const images = new Images(api, settings);
 
 /**
+ * Hotkeys instance for handling the main view
+ * @type {Images}
+ */
+const hotkeys = new Hotkeys(images);
+
+/**
  * Lobby instance for managing the lobby state and interactions.
  * @type {Lobby}
  */
@@ -70,6 +77,7 @@ const custom = new Custom(images);
     await images.remoteUpdateImages()
     await images.displayImages("")
     await custom.generateCustomList()
+    await hotkeys.loadHotkeys()
     setTimeout(function () {
         $('#warning').slideUp();
     }, 10000);
@@ -114,8 +122,15 @@ window.leaveLobby = function (){
 /**
  * If shortcut key is pressed, checks for lobby updates.
  */
-ipcRenderer.on('shortcut-key-pressed', async (event) => {
+ipcRenderer.on('check-lobby-update', async (event) => {
     lobby.checkLobbyUpdate()
+});
+
+/**
+ * If shortcut key is pressed, hide current map.
+ */
+ipcRenderer.on('hide-map', async (event) => {
+    images.sendMap("", images.lastMapType)
 });
 
 window.addCustomMap = function () {
