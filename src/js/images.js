@@ -70,7 +70,7 @@ class Images {
                 if (this.computeMD5(result) !== file.md5) {
                     debugLog("images::remoteUpdateImages::downloading", file.filePath);
                     try {
-                        let imageBuff = await axios.get(this.baseUrl + file.filePath + "?md5=" + file.md5, {
+                        let imageBuff = await axios.get(this.baseUrl + "/" + file.filePath + "?md5=" + file.md5, {
                             responseType: "arraybuffer",
                             timeout: 5000
                         })

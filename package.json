@@ -1,6 +1,6 @@
 {
   "name": "dbd-map",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "Overlay for DBD maps",
   "main": "index.js",
   "author": "Luca <admin@lucaservers.com>",
@@ -37,7 +37,9 @@
       "!scripts/*",
       "!dist/*",
       "!maps/*",
-      "!.github/*"
+      "!.github/*",
+      "!.vscode/*",
+      "!.yarn/*"
     ]
   },
   "devDependencies": {
@@ -54,7 +56,7 @@
     "jquery": "^3.7.0",
     "marked": "^15.0.7",
     "popper.js": "^1.16.1",
-    "sharp": "^0.33.5",
+    "sharp": "0.32.6",
     "uuid": "^11.1.0"
   },
   "packageManager": "yarn@4.9.2"
