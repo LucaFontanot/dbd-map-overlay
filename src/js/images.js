@@ -171,12 +171,11 @@ class Images {
             const parts = path.replace(/\\/g,"/").split("/");
 
             let creator, realm, mapName;
-
             if (parts.length < 4) {
                 // If the path does not have enough parts, we assume it's a custom map
                 creator = "Custom";
                 realm = "Custom";
-                mapName = parts[0];
+                mapName = parts[1];
             } else {
                 creator = parts[1];
                 realm = parts[2];

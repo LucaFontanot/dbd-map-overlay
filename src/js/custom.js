@@ -1,5 +1,4 @@
 const {ipcRenderer} = require("electron");
-const sharp = require('sharp');
 const {debugLog} = require("./logger");
 
 class Custom {
@@ -11,25 +10,8 @@ class Custom {
 
     async resizeImage(buffer) {
         debugLog("custom::resizeImage::called", buffer.length);
-        return new Promise(function (resolve) {
-            try {
-                sharp(buffer)
-                    .resize(1920)
-                    .toBuffer(async (err, buff, info) => {
-                        if (err) {
-                            return resolve(false);
-                        }
-                        resolve(buff)
-                    })
-                    .on("error", (e) => {
-                        debugLog("custom::resizeImage::error", e.message);
-                        return resolve(false);
-                    });
-            } catch (e) {
-                debugLog("custom::resizeImage::catch", e.message);
-                return resolve(false);
-            }
-        })
+        debugLog("custom::resizeImage not implemented, using original image size");
+        return buffer;
     }
 
     async getFileFormBase64(file) {
