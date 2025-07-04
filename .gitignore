@@ -79,6 +79,7 @@ package-lock.json
 .env.production.local
 .env.local
 package-lock.json
+yarn.lock
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

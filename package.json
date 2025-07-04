@@ -6,8 +6,12 @@
   "author": "Luca <admin@lucaservers.com>",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder -wl --publish always",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "electron-builder -wl",
+    "build:win": "electron-builder -w",
+    "build:linux": "electron-builder -l",
+    "publish": "electron-builder -wl --publish always",
+    "publish:win": "electron-builder -w --publish always",
+    "publish:linux": "electron-builder -l --publish always"
   },
   "keywords": [],
   "license": "ISC",
@@ -37,20 +41,21 @@
     ]
   },
   "devDependencies": {
-    "electron": "^35.0.3",
-    "electron-builder": "^25.1.8"
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
   },
   "dependencies": {
     "@popperjs/core": "^2.11.8",
-    "electron-updater": "^6.3.9",
     "axios": "^1.8.0",
     "bootstrap": "^5.3.1",
     "cron": "^4.1.0",
+    "electron-updater": "^6.6.2",
     "image-size": "^1.0.2",
     "jquery": "^3.7.0",
     "marked": "^15.0.7",
     "popper.js": "^1.16.1",
     "sharp": "^0.33.5",
     "uuid": "^11.1.0"
-  }
+  },
+  "packageManager": "yarn@4.9.2"
 }
