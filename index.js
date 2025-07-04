@@ -1,9 +1,13 @@
-const {app, BrowserWindow, ipcMain, globalShortcut, screen, shell, ipcRenderer} = require('electron')
+const {app, BrowserWindow, ipcMain, globalShortcut, screen, shell} = require('electron')
 const path = require('path')
 const fs = require("fs");
 const sizeOf = require('image-size');
 const uuid = require('uuid');
 const {autoUpdater} = require("electron-updater");
+const { randomUUID } = require('crypto');
+
+const hotkeyFilePath = path.join(app.getPath('userData'), 'hotkeys.json');
+let win = null
 
 function ensureDirectoryExistence(filePath) {
     var dirname = path.dirname(filePath);
@@ -28,6 +32,46 @@ function getFilesFromDir(dirPath) {
     return results;
 }
 
+function setDefaultHotkeys() {
+    globalShortcut.register('CommandOrControl+p', () => {
+        win.webContents.send('check-lobby-update');
+    });
+    globalShortcut.register('CommandOrControl+h', () => {
+        win.webContents.send('hide-map');
+    });
+}
+
+function registerHotkeys(hotkeys) {
+    globalShortcut.unregisterAll();
+    setDefaultHotkeys()
+
+    for (const [hotkey, { mapKey, id }] of Object.entries(hotkeys)) {
+        const ok = globalShortcut.register(hotkey, () => {
+            console.log(`(${id}) ${hotkey} pressed → ${mapKey}`);
+            win.webContents.send('hotkey-pressed', mapKey);
+        });
+
+        if (!ok) {
+            console.warn(`Failed to register “${hotkey}” (id: ${id})`);
+            sendUpdateStatusToWindow(`Failed to register “${hotkey}”`);
+        }
+    }
+}
+
+function loadKeys() {
+    if (!fs.existsSync(hotkeyFilePath)) return;
+
+    try {
+        const data   = fs.readFileSync(hotkeyFilePath, "utf-8");
+        const parsed = JSON.parse(data);
+
+        win.webContents.send('hotkey-updated', parsed);
+        registerHotkeys(parsed);
+    } catch (err) {
+        console.error("Failed to load hotkeys:", err);
+    }
+}
+
 async function deleteDirectoryContents(directoryPath) {
     try {
         const files = await fs.promises.readdir(directoryPath);
@@ -49,7 +93,7 @@ async function deleteDirectoryContents(directoryPath) {
 
 function createWindow() {
     let s = null;
-    const win = new BrowserWindow({
+    win = new BrowserWindow({
         width: 1000,
         height: 600,
         webPreferences: {
@@ -89,9 +133,6 @@ function createWindow() {
     overlayWindow.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
     overlayWindow.setSkipTaskbar(true);
     overlayWindow.setIgnoreMouseEvents(true);
-    globalShortcut.register('CommandOrControl+p', () => {
-        win.webContents.send('shortcut-key-pressed');
-    });
     ipcMain.on('set-mouse-drag', async (event, drag) => {
         if (drag) {
             overlayWindow.setIgnoreMouseEvents(false);
@@ -278,6 +319,67 @@ function createWindow() {
     ipcMain.handle('version', async (event, dir) => {
         return app.getVersion()
     })
+
+    ipcMain.on('save-hotkeys', (event, settings) => {
+        const { hotkey, mapkey, id: incomingId } = settings;   // renderer may already send an id
+        if (!hotkey || !mapkey) {
+            console.warn("Hotkey or map not selected");
+            return;
+        }
+
+        let saved = {};
+        if (fs.existsSync(hotkeyFilePath)) {
+            try {
+                saved = JSON.parse(fs.readFileSync(hotkeyFilePath, "utf-8"));
+            } catch (err) {
+                console.error("Error parsing existing hotkeys:", err);
+            }
+        }
+        const id = incomingId || (saved[hotkey] && saved[hotkey].id) || randomUUID();
+
+        saved[hotkey] = { id, mapKey: mapkey };
+
+        try {
+            fs.writeFileSync(hotkeyFilePath, JSON.stringify(saved, null, 2), "utf-8");
+            console.log(`Saved hotkey [${id}]: ${hotkey} → ${mapkey}`);
+            sendUpdateStatusToWindow('Hotkey saved successfully.');
+            console.log("Reloading hotkeys…");
+            loadKeys();
+        } catch (err) {
+            console.error("Failed to save hotkeys:", err);
+            sendUpdateStatusToWindow('Failed to save hotkey.');
+        }
+    });
+
+    ipcMain.on('load-hotkeys', (event) => {
+        loadKeys()
+    });
+
+    ipcMain.on('delete-hotkey', (event, id) => {
+        let saved = {};
+
+        if (fs.existsSync(hotkeyFilePath)) {
+            try {
+                saved = JSON.parse(fs.readFileSync(hotkeyFilePath, 'utf-8'));
+            } catch (err) {
+                console.error('Error parsing existing hotkeys:', err);
+            }
+        }
+
+        const keyToDelete = Object.keys(saved).find(hk => saved[hk].id === id);
+
+        if (keyToDelete) {
+            delete saved[keyToDelete];
+            fs.writeFileSync(hotkeyFilePath, JSON.stringify(saved, null, 2), 'utf-8');
+            console.log(`Removed hotkey: ${keyToDelete} (id: ${id})`);
+            sendUpdateStatusToWindow('Hotkey deleted.');
+            loadKeys();
+        } else {
+            console.warn(`No hotkey found for id ${id}`);
+        }
+    });
+
+
     win.on("closed", () => {
         overlayWindow.close()
         if (obsWindow !== null) {

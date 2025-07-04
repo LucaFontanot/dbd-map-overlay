@@ -4,10 +4,15 @@
     <meta charset="UTF-8"/>
     <title>DBD Map Overlay</title>
     <link rel="stylesheet" href="./css/bootstrap.min.css"/>
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.4.3/dist/css/tom-select.bootstrap5.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css"/>
+
     <script src="https://dbdmap.lucaservers.com/api/challange.js?v=1.0"></script>
     <script>var $ = require('jquery');</script>
     <script>require('popper.js');</script>
     <script>var bootstrap = require('bootstrap');</script>
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.4.3/dist/js/tom-select.complete.min.js"></script>
 
     <style>
         ::-webkit-scrollbar {
@@ -106,9 +111,9 @@
                     <h1 class="modal-title fs-5">Credits</h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body" id="creditsContent">
-                    ...
-                </div>
+                    <div id="creditsContent" class="text-start ps-3">
+                        ...
+                    </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
@@ -124,31 +129,101 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <label for="sizeRange" class="form-label">Overlay Size</label>
-                    <input type="range" class="form-range" min="50" max="500" step="50" id="sizeRange">
-                    <label for="positionLabel" class="form-label">Overlay Position</label>
-                    <select class="form-select" id="positionLabel">
-                        <option value="1">Top Left</option>
-                        <option value="2">Top Right</option>
-                        <option value="3">Bottom Left</option>
-                        <option value="4">Bottom Right</option>
-                    </select>
-                    <label for="opacityRange" class="form-label">Opacity</label>
-                    <input type="range" class="form-range" min="0.1" max="1" step="0.1" id="opacityRange">
-                    <label for="hiddenCheck" class="form-label">Overlay Hidden</label>
-                    <input type="checkbox" id="hiddenCheck">
-                    <div>
-                        <label for="dragCheck" class="form-label">Overlay Draggable</label>
-                        <input type="checkbox" id="dragCheck">
-                        <button class="btn btn-dark" id="set-pos">Set position</button>
-                        <button class="btn btn-dark" id="unset-pos" style="display: none">Stop setting position</button>
+                    <!-- Nav tabs -->
+                    <ul class="nav nav-tabs" id="settingsTab" role="tablist">
+                        <li class="nav-item " role="presentation">
+                            <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#settings-overlay"
+                                    type="button" role="tab">General</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="hotkeys-tab" data-bs-toggle="tab" data-bs-target="#settings-hotkeys"
+                                    type="button" role="tab">Hotkeys</button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content pt-3" id="settingsTabContent">
+
+                        <!-- Overlay Tab -->
+                        <div class="tab-pane fade show active" id="settings-overlay" role="tabpanel">
+                            <label for="sizeRange" class="form-label">Overlay Size</label>
+                            <input type="range" class="form-range" min="50" max="500" step="50" id="sizeRange">
+                            <label for="positionLabel" class="form-label">Overlay Position</label>
+                            <select class="form-select" id="positionLabel">
+                                <option value="1">Top Left</option>
+                                <option value="2">Top Right</option>
+                                <option value="3">Bottom Left</option>
+                                <option value="4">Bottom Right</option>
+                            </select>
+                            <label for="opacityRange" class="form-label">Opacity</label>
+                            <input type="range" class="form-range" min="0.1" max="1" step="0.1" id="opacityRange">
+                            <label for="hiddenCheck" class="form-label">Overlay Hidden</label>
+                            <input type="checkbox" id="hiddenCheck">
+                            <div>
+                                <label for="dragCheck" class="form-label">Overlay Draggable</label>
+                                <input type="checkbox" id="dragCheck">
+                                <button class="btn btn-dark" id="set-pos">Set position</button>
+                                <button class="btn btn-dark" id="unset-pos" style="display: none">Stop setting position</button>
+                            </div>
+                            <p>To set the position of the overlay. First set any map. Then start setting the position. Then use
+                                the mouse to move the window. At the end press "Stop setting position"</p>
+                            <p>Forgetting to stop setting position may result in the mouse having issue while in game</p>
+                        </div>
+
+                        <!-- Hotkeys Tab -->
+                        <div class="tab-pane fade" id="settings-hotkeys" role="tabpanel">
+                            <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addHotkeyModal">
+                                Add Hotkey
+                            </button>
+
+                            <h1 class="modal-title fs-5">Maps</h1>
+                            <table class="table table-bordered">
+                                <thead>
+                                <tr>
+                                    <th>Hotkey</th>
+                                    <th>Map</th>
+                                    <th>Creator</th>
+                                    <th></th>
+                                </tr>
+                                </thead>
+                                <tbody id="hotkeyList">
+                                </tbody>
+                            </table>
+
+                            <div class="alert alert-secondary d-flex flex-column gap-1 py-2 mb-4">
+                                <strong class="fs-6 mb-1">Default hotkeys</strong>
+                                <span><kbd>Cmd / Ctrl + P</kbd> – Reload Map when in a Lobby</span>
+                                <span><kbd>Cmd / Ctrl + H</kbd> – Hide currently open Map</span>
+                            </div>
+                        </div>
                     </div>
-                    <p>To set the position of the overlay. First set any map. Then start setting the position. Then use
-                        the mouse to move the window. At the end press "Stop setting position"</p>
-                    <p>Forgetting to stop setting position may result in the mouse having issue while in game</p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Hotkey modal-->
+    <div class="modal fade" id="addHotkeyModal" tabindex="-1" aria-hidden="true" style="color: black">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title black">Bind New Hotkey</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <label for="hotkeyInput" class="form-label">Press a key combination</label>
+                    <input type="text" class="form-control" id="hotkeyInput" placeholder="Press a key..." readonly>
+                    <label for="selectCreator" class="form-label mt-3">Select Creator</label>
+                    <select id="selectCreator" class="form-select mb-3"></select>
+
+                    <label for="selectMap" class="form-label mt-3">Select Map</label>
+                    <select id="selectMap" class="form-select" autocomplete="off">
+                        <option value="">Select...</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" id="saveHotkeyBtn" data-bs-dismiss="modal" onclick="this.blur()">Save Hotkey</button>
                 </div>
             </div>
         </div>
