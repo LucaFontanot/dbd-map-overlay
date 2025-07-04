@@ -168,7 +168,7 @@ class Images {
         const result = {};
         const pathLookup = this.pathLookup
         paths.forEach(path => {
-            const parts = path.split("/");
+            const parts = path.replace(/\\/g,"/").split("/");
 
             let creator, realm, mapName;
 
