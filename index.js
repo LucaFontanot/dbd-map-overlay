@@ -33,10 +33,13 @@ function getFilesFromDir(dirPath) {
 }
 
 function setDefaultHotkeys() {
+    console.log("Setting default hotkeys…");
     globalShortcut.register('CommandOrControl+p', () => {
+        console.log('CommandOrControl+p pressed → toggle-map');
         win.webContents.send('check-lobby-update');
     });
     globalShortcut.register('CommandOrControl+h', () => {
+        console.log('CommandOrControl+h pressed → hide-map');
         win.webContents.send('hide-map');
     });
 }
@@ -58,8 +61,16 @@ function registerHotkeys(hotkeys) {
     }
 }
 
+function sendUpdateStatusToWindow(text) {
+    win.webContents.send('update-message', text);
+}
+
 function loadKeys() {
-    if (!fs.existsSync(hotkeyFilePath)) return;
+    if (!fs.existsSync(hotkeyFilePath)){
+        console.log("Hotkey file does not exist");
+        registerHotkeys({})
+        return
+    }
 
     try {
         const data   = fs.readFileSync(hotkeyFilePath, "utf-8");
@@ -109,7 +120,7 @@ function createWindow() {
         shell.openExternal(url);
         return {action: 'deny'};
     });
-    //win.setMenu(null)
+    win.setMenu(null)
     let overlayWindow = new BrowserWindow({
         width: 0,
         height: 0,
@@ -352,6 +363,7 @@ function createWindow() {
     });
 
     ipcMain.on('load-hotkeys', (event) => {
+        console.log("Loading hotkeys…");
         loadKeys()
     });
 
@@ -387,9 +399,6 @@ function createWindow() {
         }
     })
 
-    function sendUpdateStatusToWindow(text) {
-        win.webContents.send('update-message', text);
-    }
     autoUpdater.on('checking-for-update', () => {
         sendUpdateStatusToWindow('Checking for update...');
     })
