@@ -139,6 +139,10 @@
                             <button class="nav-link" id="hotkeys-tab" data-bs-toggle="tab" data-bs-target="#settings-hotkeys"
                                     type="button" role="tab">Hotkeys</button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="hotkeys-tab" data-bs-toggle="tab" data-bs-target="#settings-stream-deck"
+                                    type="button" role="tab">Stream Deck</button>
+                        </li>
                     </ul>
 
                     <div class="tab-content pt-3" id="settingsTabContent">
@@ -193,6 +197,49 @@
                                 <strong class="fs-6 mb-1">Default hotkeys</strong>
                                 <span><kbd>Cmd / Ctrl + P</kbd> – Reload Map when in a Lobby</span>
                                 <span><kbd>Cmd / Ctrl + H</kbd> – Hide currently open Map</span>
+                            </div>
+                        </div>
+
+                        <!-- Stream Deck Tab -->
+                        <div class="tab-pane fade" id="settings-stream-deck" role="tabpanel">
+                            <form>
+                                <p><strong>Choose your Stream Controller Installation:</strong></p>
+
+                                <label>
+                                    <input type="radio" name="streamControllerInstall" value="flatpak">
+                                    Flatpak
+                                </label><br>
+
+                                <label>
+                                    <input type="radio" name="streamControllerInstall" value="system">
+                                    Choose output dir manually
+                                </label><br>
+                            </form>
+                            <button class="btn btn-primary mb-3" id="createConfigs">
+                                Create Configs
+                            </button>
+
+                            <div class="alert alert-warning py-3 px-4 mb-4">
+                                <h5 class="alert-heading mb-2">Font Awesome Required</h5>
+                                <p class="mb-0">
+                                    Make sure that 
+                                    <strong>Font Awesome</strong> is installed in your Stream Controller setup — otherwise, the icons will not appear correctly.
+                                </p>
+                            </div>
+                            
+                            <div class="alert alert-secondary py-3 px-4 mb-4">
+                                <h5 class="alert-heading mb-2">Stream Controller Support</h5>
+                                <p class="mb-1">
+                                    This feature currently works only with 
+                                    <a href="https://github.com/StreamController/StreamController" target="_blank" rel="noopener noreferrer">
+                                    Stream Controller</a>, a Linux application for managing stream decks.
+                                </p>
+                                <p class="mb-0">
+                                    You can also 
+                                    <a href="https://github.com/LucaFontanot/dbd-map-overlay?tab=readme-ov-file#command-line-usage" target="_blank" rel="noopener noreferrer">
+                                    use the command line support
+                                    </a> for integration with other setups.
+                                </p>
                             </div>
                         </div>
                     </div>

@@ -9,6 +9,7 @@ const {BASEURL} = require("./js/consts");
 const Images = require("./js/images.js");
 const Hotkeys = require("./js/hotkeys.js")
 const Options = require("./js/options.js");
+const StreamDeck = require("./js/streamdeck.js");
 
 let timeoutHide = null;
 ipcRenderer.on("update-message", async (event, message) => {
@@ -71,6 +72,12 @@ const privacy = new Privacy();
  * @type {Custom}
  */
 const custom = new Custom(images);
+
+/**
+ * Custom instance for handling stream deck config export.
+ * @type {StreamDeck}
+ */
+const streamDeck = new StreamDeck(images);
 
 
 (async function () {
