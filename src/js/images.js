@@ -101,6 +101,15 @@ class Images {
         $("#creatorSelect").on("input", function (ev) {
             thisRef.displayImages($("#searchbar").val())
         })
+        ipcRenderer.on('show-map-command', (event, arg) => {
+            let mapIamgePath = this.findClosestMapMatch(arg)
+            const response = this.sendMap(mapIamgePath, "standard");
+            if (response) {
+                debugLog("mapCommand::setMap::success", "Map set successfully");
+            } else {
+                debugLog("mapCommand::setMap::error", "Failed to set map");
+            }
+        });
     }
 
     searchMaps(name = '', creator = '') {
@@ -192,6 +201,25 @@ class Images {
 
         return result;
     }
+
+    findClosestMapMatch(mapKey) {
+        const normalizedKey = mapKey.replace(/\\/g, '/').trim().toLowerCase();
+
+        for (const key of Object.keys(this.pathLookup)) {
+            const keyWithoutExt = key.replace(/\.[^.]+$/, '').toLowerCase();
+            if (keyWithoutExt === normalizedKey) {
+                return this.pathLookup[key];
+            }
+        }
+
+        const matches = Object.keys(this.pathLookup).filter(key => key.toLowerCase().includes(normalizedKey));
+        if (matches.length > 0) {
+            return this.pathLookup[matches[0]];
+        }
+
+        return null;
+    }
+
 
     async invalidateCache() {
         debugLog("images::invalidateCache::called");

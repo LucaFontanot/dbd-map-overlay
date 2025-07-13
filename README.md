@@ -29,3 +29,24 @@ This software is licensed under the Apache 2.0 License
 This means you can use it for free, modify it, and distribute it as long as you give credit to the original author and don't hold them liable.
 This software is provided as is, without any warranty or guarantee of any kind.
 Not affiliated with Dead by Daylight, Behaviour Interactive, or any of their partners.
+## Command-line usage
+You can start the app with a map command to display a specific map in the **already** running instance.
+**Usage:**
+```bash
+dbd-map-overlay show-map="Creator/Realm/MapName"
+```
+- If the application is not running yet, it will start normally and not apply the map.
+- If the application is already running, the map will be updated in the background.
+- If no map is passed and the app is already running, a popup will inform you that it's already open.
+**Map Keys:**
+Map keys follow this format:
+``
+Creator/Realm/MapName
+```
+Example:
+```
+SamoelColt/The Macmillan Estate/Suffocation Pit
+```
+- The key is case-insensitive.
+- File extensions are not required.
+- If the map name isn't found exactly, the closest match will be used.

@@ -1,10 +1,49 @@
-const {app, BrowserWindow, ipcMain, globalShortcut, screen, shell} = require('electron')
+const {app, BrowserWindow, ipcMain, globalShortcut, screen, shell, dialog } = require('electron')
 const path = require('path')
 const fs = require("fs");
 const sizeOf = require('image-size');
 const uuid = require('uuid');
 const {autoUpdater} = require("electron-updater");
 const { randomUUID } = require('crypto');
+
+const gotLock = app.requestSingleInstanceLock();
+
+if (!gotLock) {
+  if (process.argv.length <= 1) {
+    console.log("Another instance is already running.");
+    app.whenReady().then(async () => {
+      const tempWin = new BrowserWindow({ show: false });
+
+      await dialog.showMessageBox(tempWin, {
+        type: 'info',
+        title: 'App already running',
+        message: 'The application is already running.',
+        buttons: ['OK']
+      });
+
+      app.quit();
+    });
+  } else {
+    console.log(`Sending args to application: ${process.argv.slice(1).join(" ")}`);
+    app.quit();
+  }
+  return;
+} else {
+  app.on('second-instance', (event, argv, workingDirectory) => {
+    const args = argv.slice(1);
+    args.forEach(arg => {
+        console.log(arg)
+        if (arg.startsWith('show-map=')) {
+            const mapKey = arg.split('=')[1];
+            console.log(`Opening map: ${mapKey}`);
+            if (win) {
+                win.webContents.send('show-map-command', mapKey);
+            }
+        }
+    });
+    console.log(`Received args from second instance: ${args.join(" ")}`);
+  });
+}
 
 const hotkeyFilePath = path.join(app.getPath('userData'), 'hotkeys.json');
 let win = null
@@ -431,12 +470,14 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-    createWindow()
-    app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-            createWindow()
-        }
-    })
+    if (gotLock) {
+        createWindow()
+        app.on('activate', () => {
+            if (BrowserWindow.getAllWindows().length === 0) {
+                createWindow()
+            }
+        })
+    }
 })
 
 app.on('window-all-closed', (w) => {
