@@ -7,6 +7,8 @@ const {autoUpdater} = require("electron-updater");
 const { randomUUID } = require('crypto');
 
 const gotLock = app.requestSingleInstanceLock();
+const debug = process.env.DEBUG === 'true';
+
 
 if (!gotLock) {
   if (process.argv.length <= 1) {
@@ -155,13 +157,13 @@ function createWindow() {
     })
     win.loadFile('src/index.html')
 
-    win.webContents.openDevTools()
+    if(debug) win.webContents.openDevTools()
 
     win.webContents.setWindowOpenHandler(({url}) => {
         shell.openExternal(url);
         return {action: 'deny'};
     });
-    win.setMenu(null)
+    if (!debug) win.setMenu(null)
     let overlayWindow = new BrowserWindow({
         width: 0,
         height: 0,

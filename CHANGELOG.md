@@ -1,3 +1,13 @@
+## 1.4.8
+- Added support for stream deck
+
+## 1.4.6 - 1.4.7
+- Added creator filter on the search bar
+- Added custom hotkeys for the maps
+
+## 1.4.5
+- Code refactoring
+
 ## 1.2.4
 - Updated dependencies
 
