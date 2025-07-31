@@ -1,6 +1,6 @@
 {
   "name": "dbd-map",
-  "version": "1.4.8",
+  "version": "1.4.9",
   "description": "Overlay for DBD maps",
   "main": "index.js",
   "author": "Luca <admin@lucaservers.com>",
@@ -43,8 +43,8 @@
     ]
   },
   "devDependencies": {
-    "electron": "^37.2.0",
-    "electron-builder": "26.0.12"
+    "electron": "35.0.3",
+    "electron-builder": "25.1.8"
   },
   "dependencies": {
     "@popperjs/core": "^2.11.8",

@@ -1,3 +1,7 @@
+## 1.4.9
+- Downgraded the version of the electron to fix a bug with windows
+- Loaded all scripts locally to avoid vulnerability issues
+
 ## 1.4.8
 - Added support for stream deck
 
