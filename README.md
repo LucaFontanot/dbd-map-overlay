@@ -77,11 +77,11 @@ dbd-map-overlay show-map="Creator/Realm/MapName"
 Map keys follow this format:
 ``
 Creator/Realm/MapName
-```
+``
 Example:
-```
+``
 SamoelColt/The Macmillan Estate/Suffocation Pit
-```
+``
 - The key is case-insensitive.
 - File extensions are not required.
 - If the map name isn't found exactly, the closest match will be used.
