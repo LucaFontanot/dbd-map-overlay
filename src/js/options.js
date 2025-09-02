@@ -12,6 +12,11 @@ class Options {
         } else {
             $("#set-pos").hide();
         }
+
+        if (settings.get("minimizeToTray") === true) {
+            $("#minimizeToTrayCheck").prop("checked", true);
+        }
+
         $("#hiddenCheck").on("input", async function (ev) {
             var input = $(this);
             var val = input.prop('checked');
@@ -29,6 +34,11 @@ class Options {
                 $("#set-pos").hide();
             }
         })
+        $("#minimizeToTrayCheck").on("input", async function (ev) {
+            var input = $(this);
+            var val = input.prop('checked');
+            await settings.set("minimizeToTray", val);
+        });
         $("#sizeRange").on("input", async function (ev) {
             var input = $(this);
             var val = input.val();

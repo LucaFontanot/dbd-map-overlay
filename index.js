@@ -1,4 +1,4 @@
-const {app, BrowserWindow, ipcMain, globalShortcut, screen, shell, dialog } = require('electron')
+const {app, BrowserWindow, ipcMain, globalShortcut, screen, shell, dialog, Tray, Menu } = require('electron')
 const path = require('path')
 const fs = require("fs");
 const sizeOf = require('image-size');
@@ -9,6 +9,7 @@ const { randomUUID } = require('crypto');
 const gotLock = app.requestSingleInstanceLock();
 const debug = process.env.DEBUG === 'true';
 
+let tray = null;
 
 if (!gotLock) {
   if (process.argv.length <= 1) {
@@ -164,6 +165,9 @@ function createWindow() {
         return {action: 'deny'};
     });
     if (!debug) win.setMenu(null)
+
+    createTray();
+
     let overlayWindow = new BrowserWindow({
         width: 0,
         height: 0,
@@ -294,7 +298,8 @@ function createWindow() {
         id: uuid.v4(),
         draggable: false,
         hideOverlay: false,
-        token: ""
+        token: "",
+        minimizeToTray: false
     };
     ipcMain.handle('get-settings', async (event) => {
         const userdata = app.getPath('userData');
@@ -502,7 +507,63 @@ function createWindow() {
         sendUpdateStatusToWindow('Checking for updates...');
         autoUpdater.checkForUpdatesAndNotify();
     },2000);
+
+    win.on("minimize", function(event){
+        if (s && s.minimizeToTray) {
+            event.preventDefault();
+            win.hide();
+        }
+    })
+
+
+    win.on('close', function (event) {
+        if (s && s.minimizeToTray) {
+            if (!app.isQuiting) {
+                event.preventDefault();
+                win.hide();
+            }
+        }
+
+        return false;
+    });
 }
+
+function createTray() {
+    const trayIconPath = path.join(__dirname, "build", "icon.png");
+    tray = new Tray(trayIconPath);
+
+    tray.setToolTip('DBD Map Overlay');
+
+    const contextMenu = Menu.buildFromTemplate([
+        {
+            label: 'Show App',
+            click: function(){
+                win.show();
+                win.focus();
+            }
+        },
+        { type: 'separator' },
+        {
+            label: 'Quit',
+            click: function(){
+                app.isQuiting = true;
+                app.quit();
+            }
+        }
+    ]);
+
+    tray.setContextMenu(contextMenu);
+
+    tray.on('double-click', () => {
+        win.show();
+        win.focus();
+    });
+
+    tray.on('click', () => {
+        win.isVisible() ? win.hide() : win.show();
+    });
+}
+
 
 app.whenReady().then(() => {
     if (gotLock) {
@@ -520,4 +581,11 @@ app.on('window-all-closed', (w) => {
         app.quit()
     }
 })
+
+app.on('before-quit', () => {
+    if (tray) {
+        tray.destroy();
+    }
+});
+
 
