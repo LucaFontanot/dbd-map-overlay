@@ -12,6 +12,7 @@ class Images {
         this.settings = settings;
         this.baseUrl = GITHUB_ASSETS + "/" + ASSETS_REPO
         this.lastMap = "";
+        this.lastMapCache = "";
         this.lastMapType = "default";
         this.mapDictionary = [];
         this.pathLookup = [];
@@ -287,7 +288,7 @@ class Images {
         if (this.options.setting) {
             $("#unset-pos").click();
         }
-        debugLog("images::sendMap::called", map, type, api);
+        if (map !== "") this.lastMapCache = map;
         if (type === "") return;
         this.lastMap = map;
         this.lastMapType = type;
