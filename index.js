@@ -299,7 +299,8 @@ function createWindow() {
         draggable: false,
         hideOverlay: false,
         token: "",
-        minimizeToTray: false
+        minimizeToTray: false,
+        disableFaqPopup: false
     };
     ipcMain.handle('get-settings', async (event) => {
         const userdata = app.getPath('userData');
@@ -472,8 +473,10 @@ function createWindow() {
     });
 
     win.on("closed", () => {
-        overlayWindow.close()
-        if (obsWindow !== null) {
+        if (overlayWindow !== null && !overlayWindow.isDestroyed()) {
+            overlayWindow.close()
+        }
+        if (obsWindow !== null && !obsWindow.isDestroyed()) {
             obsWindow.close()
         }
     })

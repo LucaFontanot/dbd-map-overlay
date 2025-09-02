@@ -54,12 +54,17 @@ const hotkeys = new Hotkeys(images);
 const lobby = new Lobby(api, settings, images);
 images.setLobby(lobby);
 
-/**
- * Options instance for managing overlay options and configurations.
- * @type {Options}
- */
-const options = new Options(settings, images);
-images.setOptions(options);
+// Wait for settings to be initialized before creating Options
+let options;
+settings.init().then(() => {
+    /**
+     * Options instance for managing overlay options and configurations.
+     * @type {Options}
+     */
+    options = new Options(settings, images);
+    images.setOptions(options);
+});
+
 
 /**
  * Privacy instance for managing privacy settings and data handling.

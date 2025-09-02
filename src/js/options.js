@@ -17,6 +17,26 @@ class Options {
             $("#minimizeToTrayCheck").prop("checked", true);
         }
 
+        if (settings.get("hideOverlay") === true) {
+            $("#hiddenCheck").prop("checked", true);
+        }
+
+        if (settings.get("position") !== null) {
+            $("#positionLabel").val(settings.get("position"));
+        }
+
+        if (settings.get("size") !== null) {
+            $("#sizeRange").val(settings.get("size"));
+        }
+
+        if (settings.get("opacity") !== null) {
+            $("#opacityRange").val(settings.get("opacity"));
+        }
+
+        if (settings.get("disableFaqPopup") !== null) {
+            $("#disableFaqPopupCheck").prop("checked", true);
+        }
+
         $("#hiddenCheck").on("input", async function (ev) {
             var input = $(this);
             var val = input.prop('checked');
@@ -38,6 +58,11 @@ class Options {
             var input = $(this);
             var val = input.prop('checked');
             await settings.set("minimizeToTray", val);
+        });
+        $("#disableFaqPopupCheck").on("input", async function (ev) {
+            var input = $(this);
+            var val = input.prop('checked');
+            await settings.set("disableFaqPopup", val);
         });
         $("#sizeRange").on("input", async function (ev) {
             var input = $(this);
@@ -70,6 +95,9 @@ class Options {
             $("#set-pos").show();
             this.setting = false;
         })
+        if (settings.get("disableFaqPopup") !== true || settings.get("disableFaqPopup") === null) {
+            $("#warning").removeClass("d-none").addClass("show").slideDown();
+        }
     }
 
 }

@@ -54,7 +54,7 @@
     <header class="mb-auto">
         <nav class="navbar bg-dark border-bottom border-body" data-bs-theme="dark">
             <div class="container-fluid">
-                <div class="alert alert-warning alert-dismissible fade show" role="alert" id="warning">
+                <div class="alert alert-warning alert-dismissible fade d-none" role="alert" id="warning">
                     If you are having issues displaying the map with the game in fullscreen mode, please read the
                     "Frequently Asked Questions" in the menu.
                 </div>
@@ -132,23 +132,39 @@
                     <!-- Nav tabs -->
                     <ul class="nav nav-tabs" id="settingsTab" role="tablist">
                         <li class="nav-item " role="presentation">
-                            <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#settings-overlay"
+                            <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#settings-general"
                                     type="button" role="tab">General</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="overlay-tab" data-bs-toggle="tab" data-bs-target="#settings-overlay"
+                                    type="button" role="tab">Overlay</button>
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="hotkeys-tab" data-bs-toggle="tab" data-bs-target="#settings-hotkeys"
                                     type="button" role="tab">Hotkeys</button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="hotkeys-tab" data-bs-toggle="tab" data-bs-target="#settings-stream-deck"
+                            <button class="nav-link" id="steam-deck-tab" data-bs-toggle="tab" data-bs-target="#settings-stream-deck"
                                     type="button" role="tab">Stream Deck</button>
                         </li>
                     </ul>
 
                     <div class="tab-content pt-3" id="settingsTabContent">
 
+                        <!-- General Tab -->
+                        <div class="tab-pane fade show active" id="settings-general" role="tabpanel">
+                            <div>
+                                <label for="minimizeToTrayCheck" class="form-label">Minimize to Tray</label>
+                                <input type="checkbox" id="minimizeToTrayCheck">
+                            </div>
+                            <div>
+                                <label for="disableFaqPopupCheck" class="form-label">Disable FAQ Popup</label>
+                                <input type="checkbox" id="disableFaqPopupCheck">
+                            </div>
+                        </div>
+
                         <!-- Overlay Tab -->
-                        <div class="tab-pane fade show active" id="settings-overlay" role="tabpanel">
+                        <div class="tab-pane fade" id="settings-overlay" role="tabpanel">
                             <label for="sizeRange" class="form-label">Overlay Size</label>
                             <input type="range" class="form-range" min="50" max="500" step="50" id="sizeRange">
                             <label for="positionLabel" class="form-label">Overlay Position</label>
@@ -168,13 +184,11 @@
                                 <button class="btn btn-dark" id="set-pos">Set position</button>
                                 <button class="btn btn-dark" id="unset-pos" style="display: none">Stop setting position</button>
                             </div>
-                            <div>
-                                <label for="minimizeToTrayCheck" class="form-label">Minimize to Tray</label>
-                                <input type="checkbox" id="minimizeToTrayCheck">
-                            </div>
                             <p>To set the position of the overlay. First set any map. Then start setting the position. Then use
                                 the mouse to move the window. At the end press "Stop setting position"</p>
-                            <p>Forgetting to stop setting position may result in the mouse having issue while in game</p>
+                            <div class="alert alert-warning py-3 px-4 mb-4">
+                                <p class="mb-0">Forgetting to stop setting position may result in the mouse having issue while in game</p>
+                            </div>
                         </div>
 
                         <!-- Hotkeys Tab -->
