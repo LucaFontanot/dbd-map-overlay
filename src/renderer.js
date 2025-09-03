@@ -136,8 +136,12 @@ ipcRenderer.on('check-lobby-update', async (event) => {
 /**
  * If shortcut key is pressed, hide current map.
  */
-ipcRenderer.on('hide-map', async (event) => {
-    images.sendMap("", images.lastMapType)
+ipcRenderer.on('toggle-map', async (event) => {
+    if (images.lastMap === "") {
+        images.sendMap(images.lastMapCache, images.lastMapType)
+    } else {
+        images.sendMap("", images.lastMapType)
+    }
 });
 
 window.addCustomMap = function () {

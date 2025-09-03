@@ -81,8 +81,8 @@ function setDefaultHotkeys() {
         win.webContents.send('check-lobby-update');
     });
     globalShortcut.register('CommandOrControl+h', () => {
-        console.log('CommandOrControl+h pressed → hide-map');
-        win.webContents.send('hide-map');
+        console.log('CommandOrControl+h pressed → toggle-map');
+        win.webContents.send('toggle-map');
     });
 }
 
