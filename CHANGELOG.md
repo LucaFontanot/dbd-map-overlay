@@ -1,3 +1,8 @@
+## 1.5.1
+- Disable FAQ popup option
+- Change ctrl-h hotkey to toggle
+- Added try functionality to minimize to tray
+
 ## 1.4.9
 - Downgraded the version of the electron to fix a bug with windows
 - Loaded all scripts locally to avoid vulnerability issues
