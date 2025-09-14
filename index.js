@@ -156,15 +156,6 @@ function createWindow() {
         title: "DBD Map Overlay",
         icon: path.join(__dirname, "build", "icon.png"),
     })
-    win.loadFile('src/index.html')
-
-    if(debug) win.webContents.openDevTools()
-
-    win.webContents.setWindowOpenHandler(({url}) => {
-        shell.openExternal(url);
-        return {action: 'deny'};
-    });
-    if (!debug) win.setMenu(null)
 
     createTray();
 
@@ -185,12 +176,6 @@ function createWindow() {
             contextIsolation: false
         }
     })
-    let obsWindow = null;
-    overlayWindow.loadFile('src/map/map.html')
-    overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-    overlayWindow.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
-    overlayWindow.setSkipTaskbar(true);
-    overlayWindow.setIgnoreMouseEvents(true);
     ipcMain.on('set-mouse-drag', async (event, drag) => {
         if (drag) {
             overlayWindow.setIgnoreMouseEvents(false);
@@ -529,12 +514,30 @@ function createWindow() {
 
         return false;
     });
+    win.loadFile('src/index.html')
+
+    if(debug) win.webContents.openDevTools()
+
+    win.webContents.setWindowOpenHandler(({url}) => {
+        shell.openExternal(url);
+        return {action: 'deny'};
+    });
+    if (!debug) win.setMenu(null)
+    let obsWindow = null;
+    overlayWindow.loadFile('src/map/map.html')
+    overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+    overlayWindow.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
+    overlayWindow.setSkipTaskbar(true);
+    overlayWindow.setIgnoreMouseEvents(true);
 }
 
 function createTray() {
-    const trayIconPath = path.join(__dirname, "build", "icon.png");
+    const trayIconPath = path.join(__dirname, "src", "images", "icon.png");
+    if (!fs.existsSync(trayIconPath)) {
+        console.log("Tray icon not found at path:", trayIconPath);
+        return;
+    }
     tray = new Tray(trayIconPath);
-
     tray.setToolTip('DBD Map Overlay');
 
     const contextMenu = Menu.buildFromTemplate([

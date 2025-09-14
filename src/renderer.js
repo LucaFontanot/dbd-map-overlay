@@ -84,8 +84,7 @@ const custom = new Custom(images);
  */
 const streamDeck = new StreamDeck(images);
 
-
-(async function () {
+document.addEventListener('DOMContentLoaded', async function () {
     await images.remoteUpdateImages()
     await images.displayImages("")
     await custom.generateCustomList()
@@ -93,7 +92,7 @@ const streamDeck = new StreamDeck(images);
     setTimeout(function () {
         $('#warning').slideUp();
     }, 10000);
-})();
+});
 
 /**
  * Creates a new lobby using the Lobby instance.
