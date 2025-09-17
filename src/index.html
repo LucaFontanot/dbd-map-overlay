@@ -58,7 +58,10 @@
                     If you are having issues displaying the map with the game in fullscreen mode, please read the
                     "Frequently Asked Questions" in the menu.
                 </div>
-                <a class="navbar-brand" href="#" id="title">DBD Map Overlay</a>
+                <a class="navbar-brand" href="#">
+                    <img src="images/icon.png" alt="App Icon" style="height: 2.5em; vertical-align: middle; margin-right: 0.1em;">
+                    <span id="title">DBD Map Overlay</span>
+                </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarText"
                         aria-controls="navbarText" aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
@@ -111,9 +114,12 @@
                     <h1 class="modal-title fs-5">Credits</h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                    <div id="creditsContent" class="text-start ps-3">
-                        ...
-                    </div>
+                <div class="text-center mt-3">
+                    <img src="images/icon.png" alt="App Icon" style="width: 80%; max-width: 200px; height: auto;">
+                </div>
+                <div id="creditsContent" class="text-start ps-3">
+                    ...
+                </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
@@ -419,10 +425,13 @@
     <!-- Image list - main content-->
     <main class="px-3">
         <div id="overlay" class="overlay">
-            <div class="spinner-border" role="status">
-                <span class="visually-hidden">Loading...</span>
+            <div class="d-flex flex-column align-items-center justify-content-center w-100">
+                <img src="images/icon.png" alt="App Icon" style="width: 80%; max-width: 200px; height: auto;">
+                <div class="spinner-border mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <a style="padding-left: 5px" id="loadingContent"></a>
             </div>
-            <a style="padding-left: 5px" id="loadingContent"></a>
         </div>
         <div class="container">
             <div class="row justify-content-center align-items-center" style="margin: 40px">

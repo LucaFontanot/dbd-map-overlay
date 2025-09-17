@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="src/images/icon.png" alt="App Icon" width="200px" height="200px">
+</p>
+
 ![Github All Releases](https://img.shields.io/github/downloads/LucaFontanot/dbd-map-overlay/total.svg)
 ![Github Release Version](https://img.shields.io/github/package-json/v/LucaFontanot/dbd-map-overlay)
 ![GitHub Release Date](https://img.shields.io/github/release-date/lucafontanot/dbd-map-overlay)
