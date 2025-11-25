@@ -1,3 +1,8 @@
+## 1.5.2
+- Code refactoring
+- Updated app image (Thanks to Juli0q)
+- Updated dependencies to ensure compatibility
+
 ## 1.5.1
 - Disable FAQ popup option
 - Change ctrl-h hotkey to toggle

@@ -43,8 +43,8 @@
     ]
   },
   "devDependencies": {
-    "electron": "38.1.0",
-    "electron-builder": "26.0.12"
+    "electron": "^39.2.0",
+    "electron-builder": "^26.3.1"
   },
   "dependencies": {
     "@popperjs/core": "^2.11.8",
