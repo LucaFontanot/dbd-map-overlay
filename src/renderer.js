@@ -159,9 +159,12 @@ ipcRenderer.on('rotate-map', async (event) => {
     if ($("#rotationRange").length) {
         $("#rotationRange").val(newRotation);
     }
-    // Re-send the current map with new rotation
+    // Re-send the current map with new rotation, or use cached map if available
     if (images.lastMap !== "") {
         images.sendMap(images.lastMap, images.lastMapType);
+    } else if (images.lastMapCache !== "") {
+        // Apply rotation to last cached map if no map is currently displayed
+        images.sendMap(images.lastMapCache, images.lastMapType);
     }
 });
 

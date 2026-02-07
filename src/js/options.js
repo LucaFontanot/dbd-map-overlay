@@ -88,7 +88,7 @@ class Options {
         }).val(settings.get("opacity"));
         $("#rotationRange").on("input", async function (ev) {
             var input = $(this);
-            var val = input.val();
+            var val = parseInt(input.val(), 10);
             await settings.set("rotation", val);
             images.sendMap(images.lastMap, images.lastMapType)
         }).val(settings.get("rotation"));

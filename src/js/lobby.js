@@ -163,6 +163,8 @@ class Lobby {
             const response = await this.api.setMap(this.lobbyData.id, map, type, rotation);
             if (response) {
                 debugLog("lobby::setMap::success", "Map set successfully");
+                // Update local rotation state to maintain consistency
+                this.lobbyData.rotation = rotation;
             } else {
                 debugLog("lobby::setMap::error", "Failed to set map");
             }
