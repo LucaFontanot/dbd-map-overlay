@@ -15,7 +15,8 @@ class Lobby {
             map: "",
             map_base64: "",
             map_base64_hash: "",
-            last_map_user: ""
+            last_map_user: "",
+            rotation: 0
         };
         const classRef = this;
         this.job = new CronJob('*/15 * * * * *', function () {
@@ -158,7 +159,8 @@ class Lobby {
         debugLog("lobby::setMap::called", map, type);
         if (!this.lobbyData.joined) return;
         try {
-            const response = await this.api.setMap(this.lobbyData.id, map, type);
+            const rotation = this.settings.get("rotation") || 0;
+            const response = await this.api.setMap(this.lobbyData.id, map, type, rotation);
             if (response) {
                 debugLog("lobby::setMap::success", "Map set successfully");
             } else {
@@ -176,6 +178,12 @@ class Lobby {
         try {
             const lobby = await this.api.getLobbyData(this.lobbyData.id);
             if (lobby && lobby.ok) {
+                // Update rotation from server if available
+                if (lobby.rotation !== undefined && lobby.rotation !== this.lobbyData.rotation) {
+                    this.lobbyData.rotation = lobby.rotation;
+                    await this.settings.set("rotation", lobby.rotation);
+                }
+                
                 if (lobby.type === "standard") {
                     if (this.lobbyData.map !== lobby.map) {
                         this.lobbyData.map = lobby.map;

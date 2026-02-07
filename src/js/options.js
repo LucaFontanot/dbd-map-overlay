@@ -33,6 +33,10 @@ class Options {
             $("#opacityRange").val(settings.get("opacity"));
         }
 
+        if (settings.get("rotation") !== null) {
+            $("#rotationRange").val(settings.get("rotation"));
+        }
+
         if (settings.get("disableFaqPopup") !== null) {
             $("#disableFaqPopupCheck").prop("checked", true);
         }
@@ -82,6 +86,12 @@ class Options {
             await settings.set("opacity", val);
             images.sendMap(images.lastMap, images.lastMapType)
         }).val(settings.get("opacity"));
+        $("#rotationRange").on("input", async function (ev) {
+            var input = $(this);
+            var val = input.val();
+            await settings.set("rotation", val);
+            images.sendMap(images.lastMap, images.lastMapType)
+        }).val(settings.get("rotation"));
 
         $("#set-pos").on("click", function (ev) {
             ipcRenderer.send('set-mouse-drag', true);

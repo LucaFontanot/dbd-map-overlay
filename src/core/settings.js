@@ -12,7 +12,8 @@ const defaultConfig = {
     hideOverlay: false,
     token: "",
     minimizeToTray: false,
-    disableFaqPopup: false
+    disableFaqPopup: false,
+    rotation: 0
 };
 
 class Settings {

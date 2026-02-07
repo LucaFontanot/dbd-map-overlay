@@ -63,9 +63,9 @@ class MainWindow {
                     }
                 }
                 if (!settings.get('hideOverlay')) {
-                    overlayWindow.send('map-change', Buffer.from(imgData).toString("base64"), settings.get('size'), settings.get('opacity'), settings.get('draggable'))
+                    overlayWindow.send('map-change', Buffer.from(imgData).toString("base64"), settings.get('size'), settings.get('opacity'), settings.get('draggable'), settings.get('rotation'))
                 } else {
-                    overlayWindow.send('map-change', Buffer.from("").toString("base64"), settings.get('size'), settings.get('opacity'), settings.get('draggable'));
+                    overlayWindow.send('map-change', Buffer.from("").toString("base64"), settings.get('size'), settings.get('opacity'), settings.get('draggable'), settings.get('rotation'));
                 }
                 obsWindow.send('map-change', Buffer.from(imgData).toString("base64"), settings.get('size'));
             }

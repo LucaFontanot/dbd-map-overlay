@@ -148,6 +148,23 @@ ipcRenderer.on('toggle-map', async (event) => {
     }
 });
 
+/**
+ * If shortcut key is pressed, rotate the current map.
+ */
+ipcRenderer.on('rotate-map', async (event) => {
+    const currentRotation = settings.get("rotation") || 0;
+    const newRotation = (currentRotation + 90) % 360;
+    await settings.set("rotation", newRotation);
+    // Update UI if available
+    if ($("#rotationRange").length) {
+        $("#rotationRange").val(newRotation);
+    }
+    // Re-send the current map with new rotation
+    if (images.lastMap !== "") {
+        images.sendMap(images.lastMap, images.lastMapType);
+    }
+});
+
 window.addCustomMap = function () {
     custom.addCustomMap()
 }

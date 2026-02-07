@@ -121,14 +121,15 @@ class API {
         }
     }
 
-    async setMap(id, map, type) {
-        debugLog("api::setMap::called", id, map, type);
+    async setMap(id, map, type, rotation) {
+        debugLog("api::setMap::called", id, map, type, rotation);
         try {
             let body = {
                 user: this.token,
                 id: id,
                 map: map,
-                type: type
+                type: type,
+                rotation: rotation || 0
             }
             debugLog("api::setMap::body", body);
             let response = await axios.post(this.baseUrl + "/api/setMap", body, {

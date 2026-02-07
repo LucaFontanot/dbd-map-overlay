@@ -88,6 +88,10 @@ class Hotkeys {
             console.log('CommandOrControl+h pressed → toggle-map');
             win.send('toggle-map');
         });
+        globalShortcut.register('CommandOrControl+r', () => {
+            console.log('CommandOrControl+r pressed → rotate-map');
+            win.send('rotate-map');
+        });
     }
 
     registerHotkeys(hotkeys) {

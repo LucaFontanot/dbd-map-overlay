@@ -1,6 +1,6 @@
 const { ipcRenderer } = require('electron');
 let url = null;
-ipcRenderer.on('map-change', async (event, img, size,opacity,draggable) => {
+ipcRenderer.on('map-change', async (event, img, size,opacity,draggable,rotation) => {
     if (url!==null){
         URL.revokeObjectURL(url)
     }
@@ -9,7 +9,8 @@ ipcRenderer.on('map-change', async (event, img, size,opacity,draggable) => {
     url = URL.createObjectURL(blob);
     $("#mainImg").attr("src",url).css({
         "width":size+"px",
-        "opacity": opacity
+        "opacity": opacity,
+        "transform": `rotate(${rotation || 0}deg)`
     })
     if (draggable){
         $("body").css("-webkit-app-region","drag");
