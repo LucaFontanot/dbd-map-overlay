@@ -1,11 +1,11 @@
 {
   "name": "dbd-map",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "description": "Overlay for DBD maps",
   "main": "index.js",
   "author": "Luca <admin@lucaservers.com>",
   "scripts": {
-    "start": "electron .",
+    "start": "electron index.js",
     "build": "electron-builder -wl",
     "build:win": "electron-builder -w",
     "build:linux": "electron-builder -l",
