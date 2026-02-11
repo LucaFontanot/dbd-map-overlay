@@ -9,6 +9,14 @@ const UserData = require("./src/core/user-data");
 const TrayController = require("./src/core/tray");
 const StreamDeck = require("./src/core/stream-deck");
 
+// Fix for Linux VA-API error: Disable hardware acceleration on Linux to prevent
+// "vaInitialize failed: unknown libva error" and app hanging in task tray
+if (process.platform === 'linux') {
+    app.disableHardwareAcceleration();
+    app.commandLine.appendSwitch('disable-gpu');
+    app.commandLine.appendSwitch('disable-software-rasterizer');
+}
+
 const gotLock = app.requestSingleInstanceLock();
 
 if (!gotLock) {
