@@ -14,7 +14,6 @@ const StreamDeck = require("./src/core/stream-deck");
 if (process.platform === 'linux') {
     app.disableHardwareAcceleration();
     app.commandLine.appendSwitch('disable-gpu');
-    app.commandLine.appendSwitch('disable-software-rasterizer');
 }
 
 const gotLock = app.requestSingleInstanceLock();
