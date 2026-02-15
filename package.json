@@ -43,19 +43,19 @@
     ]
   },
   "devDependencies": {
-    "electron": "^39.2.0",
-    "electron-builder": "^26.3.1"
+    "electron": "^40.4.1",
+    "electron-builder": "^26.7.0"
   },
   "dependencies": {
     "@popperjs/core": "^2.11.8",
-    "axios": "^1.8.0",
-    "bootstrap": "^5.3.1",
-    "cron": "^4.1.0",
-    "electron-updater": "^6.6.2",
-    "image-size": "^1.0.2",
-    "jquery": "^3.7.0",
-    "marked": "^15.0.7",
+    "axios": "^1.13.5",
+    "bootstrap": "^5.3.8",
+    "cron": "^4.4.0",
+    "electron-updater": "^6.7.3",
+    "image-size": "^2.0.2",
+    "jquery": "^4.0.0",
+    "marked": "^17.0.2",
     "popper.js": "^1.16.1",
-    "uuid": "^11.1.0"
+    "uuid": "^13.0.0"
   }
 }
