@@ -1,4 +1,22 @@
 global.dirname = __dirname
+const { spawn } = require('child_process');
+const isWayland = require("./src/core/is-wayland");
+
+if (process.platform === 'linux' && isWayland() && !process.argv.includes('--ozone-platform=x11')) {
+
+    const args = [
+        ...process.argv.slice(1),
+        '--ozone-platform=x11',
+    ];
+
+    spawn(process.execPath, args, {
+        detached: true,
+        stdio: 'inherit'
+    });
+
+    process.exit(0);
+}
+
 const {app, BrowserWindow, dialog} = require('electron')
 const ObsWindow = require("./src/core/obs-window");
 const MainWindow = require("./src/core/main-window");
@@ -9,16 +27,6 @@ const UserData = require("./src/core/user-data");
 const TrayController = require("./src/core/tray");
 const StreamDeck = require("./src/core/stream-deck");
 
-// Fix for Linux VA-API error and Wayland issues:
-// Completely disable GPU and VA-API to prevent initialization errors
-// See: https://github.com/electron/electron/issues/48321
-if (process.platform === 'linux') {
-    app.disableHardwareAcceleration();
-    app.commandLine.appendSwitch('disable-gpu');
-    app.commandLine.appendSwitch('disable-gpu-compositing');
-    app.commandLine.appendSwitch('disable-features', 'VaapiVideoDecoder');
-    app.commandLine.appendSwitch('disable-accelerated-video-decode');
-}
 
 const gotLock = app.requestSingleInstanceLock();
 
