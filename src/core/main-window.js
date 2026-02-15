@@ -3,6 +3,7 @@ const path = require("path");
 const {autoUpdater} = require("electron-updater");
 const fs = require("fs");
 const sizeOf = require("image-size");
+const isWaylandSession = require("./is-wayland");
 
 const debug = process.env.DEBUG === 'true';
 
@@ -90,6 +91,7 @@ class MainWindow {
             },
             title: "DBD Map Overlay",
             icon: path.join(global.dirname, "build", "icon.png"),
+            show: false // Don't show immediately, wait for proper load event
         })
         let window = this.window;
         let obsWindow = this.obsWindow;
@@ -124,6 +126,24 @@ class MainWindow {
 
         if(debug) this.window.webContents.openDevTools()
         if (!debug) this.window.setMenu(null)
+
+        // On Wayland, the ready-to-show event is broken in Electron 38+
+        // (see https://github.com/electron/electron/issues/48859)
+        // Use did-finish-load instead, which fires when HTML is loaded and
+        // React root is mounted, ensuring proper Wayland activation context
+        if (isWaylandSession()) {
+            this.window.webContents.once('did-finish-load', () => {
+                if (!this.window.isDestroyed() && !this.window.isVisible()) {
+                    this.window.show();
+                    this.window.focus();
+                }
+            });
+        } else {
+            // On other platforms, use ready-to-show for optimal UX
+            this.window.once('ready-to-show', () => {
+                this.window.show();
+            });
+        }
 
         this.checkUpdates()
     }

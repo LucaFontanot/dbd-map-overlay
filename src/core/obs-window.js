@@ -1,5 +1,6 @@
 const {app, BrowserWindow, ipcMain, globalShortcut, screen, shell, dialog, Tray, Menu } = require('electron')
 const path = require("path");
+const isWaylandSession = require("./is-wayland");
 
 
 class ObsWindow {
@@ -21,7 +22,8 @@ class ObsWindow {
                 contextIsolation: false
             },
             title: "DBD Map Overlay for OBS",
-            icon: path.join(global.dirname, "build", "icon.png")
+            icon: path.join(global.dirname, "build", "icon.png"),
+            show: false // Don't show immediately on Wayland
         })
         this.window.loadFile('src/map/map_obs.html')
         this.window.setMenu(null)
@@ -29,6 +31,19 @@ class ObsWindow {
         this.window.on("closed", () => {
             obsWindow = null;
         })
+
+        // On Wayland, use did-finish-load to ensure proper activation context
+        if (isWaylandSession()) {
+            this.window.webContents.once('did-finish-load', () => {
+                if (!this.window.isDestroyed() && !this.window.isVisible()) {
+                    this.window.show();
+                }
+            });
+        } else {
+            this.window.once('ready-to-show', () => {
+                this.window.show();
+            });
+        }
     }
 
     send(event, ...data) {
