@@ -1,4 +1,5 @@
 const {BrowserWindow, ipcMain} = require('electron');
+const isWaylandSession = require("./is-wayland");
 
 class OverlayWindow {
     window = null;
@@ -34,13 +35,23 @@ class OverlayWindow {
             webPreferences: {
                 nodeIntegration: true,
                 contextIsolation: false
-            }
+            },
+            show: false,
         })
         this.window.loadFile('src/map/map.html')
         this.window.setAlwaysOnTop(true, 'screen-saver');
         this.window.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
         this.window.setSkipTaskbar(true);
         this.window.setIgnoreMouseEvents(true);
+        if (isWaylandSession()) {
+            this.window.webContents.once('did-finish-load', () => {
+                this.window.show();
+            });
+        } else {
+            this.window.once('ready-to-show', () => {
+                this.window.show();
+            });
+        }
     }
 
     send(event, ...data) {

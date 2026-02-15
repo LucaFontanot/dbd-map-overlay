@@ -41,7 +41,9 @@ class ObsWindow {
             });
         } else {
             this.window.once('ready-to-show', () => {
-                this.window.show();
+                if (!this.window.isDestroyed() && !this.window.isVisible()) {
+                    this.window.show();
+                }
             });
         }
     }
