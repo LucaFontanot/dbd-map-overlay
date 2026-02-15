@@ -2,7 +2,7 @@ const {BrowserWindow, app, shell, ipcMain, screen} = require("electron");
 const path = require("path");
 const {autoUpdater} = require("electron-updater");
 const fs = require("fs");
-const sizeOf = require("image-size");
+const { imageSize } = require('image-size')
 
 const debug = process.env.DEBUG === 'true';
 
@@ -43,7 +43,7 @@ class MainWindow {
                 } else {
                     imgData = Buffer.from(map, "base64")
                 }
-                const dimensions = sizeOf(imgData);
+                const dimensions = imageSize(imgData);
                 const {width, height} = screen.getPrimaryDisplay().workAreaSize;
                 overlayWindow.setSize(parseInt(settings.get('size')) + 5, parseInt((settings.get('size') / dimensions.width) * dimensions.height * 1.1))
                 if (!settings.get('draggable')) {
