@@ -10,13 +10,14 @@ const TrayController = require("./src/core/tray");
 const StreamDeck = require("./src/core/stream-deck");
 
 // Fix for Linux VA-API error and Wayland issues:
-// 1. Disable hardware acceleration to prevent "vaInitialize failed: unknown libva error"
-// 2. Disable GPU process to avoid VA-API initialization attempts
-// This allows the app to fall back to software rendering on Linux
+// Completely disable GPU and VA-API to prevent initialization errors
 // See: https://github.com/electron/electron/issues/48321
 if (process.platform === 'linux') {
     app.disableHardwareAcceleration();
     app.commandLine.appendSwitch('disable-gpu');
+    app.commandLine.appendSwitch('disable-gpu-compositing');
+    app.commandLine.appendSwitch('disable-features', 'VaapiVideoDecoder');
+    app.commandLine.appendSwitch('disable-accelerated-video-decode');
 }
 
 const gotLock = app.requestSingleInstanceLock();
