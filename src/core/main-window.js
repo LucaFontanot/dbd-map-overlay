@@ -56,6 +56,7 @@ class MainWindow {
                 const monitorIndex = parseInt(settings.get('monitor')) || 0;
                 const selectedDisplay = displays[monitorIndex] || displays[0] || screen.getPrimaryDisplay();
                 const {x: displayX, y: displayY, width, height} = selectedDisplay.workArea;
+                overlayWindow.setBounds(selectedDisplay.workArea)
                 overlayWindow.setSize(parseInt(settings.get('size')) + 5, parseInt((settings.get('size') / dimensions.width) * dimensions.height * 1.1))
                 if (!settings.get('draggable')) {
                     switch (settings.get('position')) {

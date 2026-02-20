@@ -55,6 +55,12 @@ class OverlayWindow {
         }
     }
 
+    setBounds(bounds) {
+        if (this.window) {
+            this.window.setBounds(bounds);
+        }
+    }
+
     setPosition(x, y) {
         if (this.window) {
             this.window.setPosition(x, y);

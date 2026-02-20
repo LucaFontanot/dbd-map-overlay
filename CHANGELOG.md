@@ -1,3 +1,8 @@
+## 1.5.3
+- Added support for rotation of the overlay displayed image (not synced yet)
+- Fix wayland support
+- Added option to choose the monitor for the overlay
+
 ## 1.5.2
 - Code refactoring
 - Updated app image (Thanks to Juli0q)
