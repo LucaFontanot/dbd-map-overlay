@@ -23,6 +23,14 @@ class MainWindow {
         ipcMain.handle('version', async (event, dir) => {
             return app.getVersion()
         })
+        ipcMain.handle('get-displays', async () => {
+            return screen.getAllDisplays().map((display, index) => ({
+                index,
+                id: display.id,
+                label: display.label || `Display ${index + 1} (${display.bounds.width}x${display.bounds.height})`,
+                bounds: display.bounds
+            }));
+        })
         ipcMain.on('map-change', async (event, map) => {
             if (!map) {
                 overlayWindow.send('map-hide');
@@ -44,21 +52,24 @@ class MainWindow {
                     imgData = Buffer.from(map, "base64")
                 }
                 const dimensions = imageSize(imgData);
-                const {width, height} = screen.getPrimaryDisplay().workAreaSize;
+                const displays = screen.getAllDisplays();
+                const monitorIndex = parseInt(settings.get('monitor')) || 0;
+                const selectedDisplay = displays[monitorIndex] || displays[0] || screen.getPrimaryDisplay();
+                const {x: displayX, y: displayY, width, height} = selectedDisplay.workArea;
                 overlayWindow.setSize(parseInt(settings.get('size')) + 5, parseInt((settings.get('size') / dimensions.width) * dimensions.height * 1.1))
                 if (!settings.get('draggable')) {
                     switch (settings.get('position')) {
                         case "1":
-                            overlayWindow.setPosition(0, 0);
+                            overlayWindow.setPosition(displayX, displayY);
                             break;
                         case "2":
-                            overlayWindow.setPosition(width - overlayWindow.getBounds().width, 0);
+                            overlayWindow.setPosition(displayX + width - overlayWindow.getBounds().width, displayY);
                             break;
                         case "3":
-                            overlayWindow.setPosition(0, height - overlayWindow.getBounds().height);
+                            overlayWindow.setPosition(displayX, displayY + height - overlayWindow.getBounds().height);
                             break;
                         case "4":
-                            overlayWindow.setPosition(width - overlayWindow.getBounds().width, height - overlayWindow.getBounds().height);
+                            overlayWindow.setPosition(displayX + width - overlayWindow.getBounds().width, displayY + height - overlayWindow.getBounds().height);
                             break;
                     }
                 }

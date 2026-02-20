@@ -37,6 +37,16 @@ class Options {
             $("#rotationRange").val(settings.get("rotation"));
         }
 
+        ipcRenderer.invoke('get-displays').then(displays => {
+            const select = $("#monitorSelect");
+            select.empty();
+            displays.forEach(d => {
+                select.append(`<option value="${d.index}">${d.label}</option>`);
+            });
+            const saved = settings.settings['monitor'];
+            select.val(saved !== null && saved !== undefined ? saved : 0);
+        });
+
         if (settings.get("disableFaqPopup") !== null) {
             $("#disableFaqPopupCheck").prop("checked", true);
         }
@@ -92,6 +102,12 @@ class Options {
             await settings.set("rotation", val);
             images.sendMap(images.lastMap, images.lastMapType)
         }).val(settings.get("rotation"));
+        $("#monitorSelect").on("input", async function (ev) {
+            var input = $(this);
+            var val = parseInt(input.val(), 10);
+            await settings.set("monitor", val);
+            images.sendMap(images.lastMap, images.lastMapType);
+        });
 
         $("#set-pos").on("click", function (ev) {
             ipcRenderer.send('set-mouse-drag', true);

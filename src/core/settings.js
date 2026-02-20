@@ -13,7 +13,8 @@ const defaultConfig = {
     token: "",
     minimizeToTray: false,
     disableFaqPopup: false,
-    rotation: 0
+    rotation: 0,
+    monitor: 0
 };
 
 class Settings {
