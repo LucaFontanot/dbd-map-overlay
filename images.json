@@ -1,0 +1,910 @@
+[
+  {
+    "filePath": "maps/EagerFace/Autohaven Wreckers/Azarovs Resting Place.jpg",
+    "md5": "3452ee1fa53f086e2b331bf3b175b33a"
+  },
+  {
+    "filePath": "maps/EagerFace/Autohaven Wreckers/Blood Lodge New.jpg",
+    "md5": "55850731c4ec3778790eb585202111b1"
+  },
+  {
+    "filePath": "maps/EagerFace/Autohaven Wreckers/Gas Heaven New.jpg",
+    "md5": "37c6c52b2e2571df44de7d05972c85a8"
+  },
+  {
+    "filePath": "maps/EagerFace/Autohaven Wreckers/Wreckers Yard.jpg",
+    "md5": "15c00a9e54425f0cce89653068242f00"
+  },
+  {
+    "filePath": "maps/EagerFace/Autohaven Wreckers/Wretched Shop.jpg",
+    "md5": "565e0aaea65e8ab1297ba1d9fa7c93a6"
+  },
+  {
+    "filePath": "maps/EagerFace/Backwater Swamp/Grim Pantry.jpg",
+    "md5": "e13df310fb18012cfd5c23c2c97108a1"
+  },
+  {
+    "filePath": "maps/EagerFace/Backwater Swamp/Pale Rose.jpg",
+    "md5": "0dfefc3ee8f4d8c806ba2ba9ee522b31"
+  },
+  {
+    "filePath": "maps/EagerFace/Badham/Badham Preschool 1.jpg",
+    "md5": "d845085cdf06f9fb62069812f5e4f17e"
+  },
+  {
+    "filePath": "maps/EagerFace/Badham/Badham Preschool 2.jpg",
+    "md5": "79c2649540e042fbef7ecdc34b9a3c3b"
+  },
+  {
+    "filePath": "maps/EagerFace/Badham/Badham Preschool 3.jpg",
+    "md5": "e7aabb3e8db38447f38df788d5a34f1b"
+  },
+  {
+    "filePath": "maps/EagerFace/Badham/Badham Preschool 4.jpg",
+    "md5": "ed2a56e687c347e6bb876f10ae5e5896"
+  },
+  {
+    "filePath": "maps/EagerFace/Badham/Badham Preschool 5.jpg",
+    "md5": "1cec19925b0eaf966efb8d3cb12af24a"
+  },
+  {
+    "filePath": "maps/EagerFace/Coldwind Farm/Fractured Cowshed.jpg",
+    "md5": "a8c3bd1aa69473aed78dfa092d957983"
+  },
+  {
+    "filePath": "maps/EagerFace/Coldwind Farm/Rancid Abattoir.jpg",
+    "md5": "621b8f180e54257f99a8591e1df12300"
+  },
+  {
+    "filePath": "maps/EagerFace/Coldwind Farm/Rotten Fields.jpg",
+    "md5": "a8f0dc11232888b88f74f1cbcd382db3"
+  },
+  {
+    "filePath": "maps/EagerFace/Coldwind Farm/Thompson House.jpg",
+    "md5": "51f8f479286c9943dfca4592dd2b34f8"
+  },
+  {
+    "filePath": "maps/EagerFace/Coldwind Farm/Torment Creek.jpg",
+    "md5": "9d9c1947f9c98de12a18db3f1820fbae"
+  },
+  {
+    "filePath": "maps/EagerFace/Crotus Prenn Asylum/Disturbed Ward.jpg",
+    "md5": "dcfade61f39495cb0f51cb949b5af759"
+  },
+  {
+    "filePath": "maps/EagerFace/Crotus Prenn Asylum/Father Campbells Chapel.jpg",
+    "md5": "4be054f4f2b0b8f87934b4b60686849c"
+  },
+  {
+    "filePath": "maps/EagerFace/Decimated Borgo/Shattered Square.jpg",
+    "md5": "3e5145ab9f87d4d3d157259ffd32432a"
+  },
+  {
+    "filePath": "maps/EagerFace/Dvarka Deepwood/Nostromo Wreckage.jpg",
+    "md5": "4013400b62f9a71e33f6ca256f8718de"
+  },
+  {
+    "filePath": "maps/EagerFace/Dvarka Deepwood/Toba Landing.jpg",
+    "md5": "a856585ead745f06b73fb7291a619e24"
+  },
+  {
+    "filePath": "maps/EagerFace/Forsaken Boneyard/Eyrie of Crows.jpg",
+    "md5": "3bb0c9588ee543c39bdd0ab3110167a3"
+  },
+  {
+    "filePath": "maps/EagerFace/Gideon Meat Plant/The Game.jpg",
+    "md5": "1aedf4a708ae483e1d6b83e291945cc9"
+  },
+  {
+    "filePath": "maps/EagerFace/Grave of Glenvale/Dead Dawg.jpg",
+    "md5": "4749e6496ac0677524f7a1adf50cc1f5"
+  },
+  {
+    "filePath": "maps/EagerFace/Haddonfield/Lampkin Lane.jpg",
+    "md5": "48672f01029e2a43533045beccb5159c"
+  },
+  {
+    "filePath": "maps/EagerFace/Hawkins National Laboratory/Hawkins.jpg",
+    "md5": "caacadf6948a2850334fd141469fd2b3"
+  },
+  {
+    "filePath": "maps/EagerFace/Lary's Memorial Institute/Treatment Theatre.jpg",
+    "md5": "fb81b2aec40677f1faacfda2193bd36b"
+  },
+  {
+    "filePath": "maps/EagerFace/MacMillan Estate/Coal Tower 1.jpg",
+    "md5": "295f2cd9213f5b2b3afaf22b0fad8987"
+  },
+  {
+    "filePath": "maps/EagerFace/MacMillan Estate/Coal Tower 2.jpg",
+    "md5": "dab58d16f3985de37b2497610c6dbda1"
+  },
+  {
+    "filePath": "maps/EagerFace/MacMillan Estate/Groaning Storehouse 1.jpg",
+    "md5": "70c92bd7f9e43a8fa59f4052a4d229e0"
+  },
+  {
+    "filePath": "maps/EagerFace/MacMillan Estate/Groaning Storehouse 2.jpg",
+    "md5": "eef02073d1cdb75fe3d0917552d87ab3"
+  },
+  {
+    "filePath": "maps/EagerFace/MacMillan Estate/Ironworks Of Misery 1.jpg",
+    "md5": "51c05a61fa55acc9c8f21267731e69b2"
+  },
+  {
+    "filePath": "maps/EagerFace/MacMillan Estate/Ironworks Of Misery 2.jpg",
+    "md5": "a451c95342ba92d91c6a8a197927dead"
+  },
+  {
+    "filePath": "maps/EagerFace/MacMillan Estate/Shelter Woods 1.jpg",
+    "md5": "21b08250d1cf8797c0a9b7922101e7b5"
+  },
+  {
+    "filePath": "maps/EagerFace/MacMillan Estate/Shelter Woods 2.jpg",
+    "md5": "b2dd95ce58b1dd3954c515b72d4f7890"
+  },
+  {
+    "filePath": "maps/EagerFace/MacMillan Estate/Suffocation Pit 1.jpg",
+    "md5": "222d41d4f91c4fea4167bdf0841980e7"
+  },
+  {
+    "filePath": "maps/EagerFace/MacMillan Estate/Suffocation Pit 2.jpg",
+    "md5": "c3c6f4b5e0b250839c36410183d840d6"
+  },
+  {
+    "filePath": "maps/EagerFace/Ormond/Ormond.jpg",
+    "md5": "312064b6d343c6a4f01a021c85d38f2a"
+  },
+  {
+    "filePath": "maps/EagerFace/Raccoon City/RPD East Wing.jpg",
+    "md5": "d0671788ed7690200d0d5f0bb7a333d7"
+  },
+  {
+    "filePath": "maps/EagerFace/Raccoon City/RPD West Wing.jpg",
+    "md5": "accd3c688ff99986f38d39eae1faa0a7"
+  },
+  {
+    "filePath": "maps/EagerFace/Red Forest/Mothers Dwelling.jpg",
+    "md5": "f447ddd305e6f0872229ca8739510961"
+  },
+  {
+    "filePath": "maps/EagerFace/Red Forest/Temple Of Purgation.jpg",
+    "md5": "cd768d2be6b32c3b07c9f291928610c5"
+  },
+  {
+    "filePath": "maps/EagerFace/Silent Hill/Midwich.jpg",
+    "md5": "68732adaed736cfbfd438ae800374741"
+  },
+  {
+    "filePath": "maps/EagerFace/Withered Isle/Garden of Joy.jpg",
+    "md5": "f2fd8907501168f32ec9c4518e1fa019"
+  },
+  {
+    "filePath": "maps/EagerFace/Withered Isle/Greenville Square.jpg",
+    "md5": "6e1c65614cdef944b40257ad6d622885"
+  },
+  {
+    "filePath": "maps/EagerFace/Yamaoka Estate/Family Residence.jpg",
+    "md5": "5cd2cecbc955214ff2c9021d05749feb"
+  },
+  {
+    "filePath": "maps/EagerFace/Yamaoka Estate/Sanctum Of Wrath.jpg",
+    "md5": "f5546dcad8ba44cd9d061d56b31216fa"
+  },
+  {
+    "filePath": "maps/Hens333/Autohaven Wreckers/Azarovs Resting Place.webp",
+    "md5": "f6f5a848e7466ac4e9aade8b36d5ad79"
+  },
+  {
+    "filePath": "maps/Hens333/Autohaven Wreckers/Blood Lodge.webp",
+    "md5": "2448a1afd397490f9ade5dea7f740540"
+  },
+  {
+    "filePath": "maps/Hens333/Autohaven Wreckers/Gas Heaven.webp",
+    "md5": "a67ad8ea81f1e03a81e05c4860d95ba5"
+  },
+  {
+    "filePath": "maps/Hens333/Autohaven Wreckers/Wreckers.webp",
+    "md5": "9de37617801b3c24fffa09c8c4e88998"
+  },
+  {
+    "filePath": "maps/Hens333/Autohaven Wreckers/Wretched Shop.webp",
+    "md5": "c9bf80688d67a4c28540f8ce2b0ce92d"
+  },
+  {
+    "filePath": "maps/Hens333/Badham/Preschool1.webp",
+    "md5": "a2351e1788efe42924ed027469f56369"
+  },
+  {
+    "filePath": "maps/Hens333/Badham/Preschool2.webp",
+    "md5": "4f94f13f870de1c9e9cdbed1033a2639"
+  },
+  {
+    "filePath": "maps/Hens333/Badham/Preschool3.webp",
+    "md5": "c931e2d60b181639bbcba1da91387672"
+  },
+  {
+    "filePath": "maps/Hens333/Badham/Preschool4.webp",
+    "md5": "6e5b7128fe47b367fda54f6960909f84"
+  },
+  {
+    "filePath": "maps/Hens333/Badham/Preschool5.webp",
+    "md5": "fd960e54760d1b9fe1f0de52a52e861e"
+  },
+  {
+    "filePath": "maps/Hens333/Borgo/Forgotten Ruins.webp",
+    "md5": "50d43f47e5610c9eecd3282a7ed6ac3b"
+  },
+  {
+    "filePath": "maps/Hens333/Borgo/Shattered Square.webp",
+    "md5": "8cb71c73eb692cb382433a9244706062"
+  },
+  {
+    "filePath": "maps/Hens333/Coldwind/Fractured Cowshed.webp",
+    "md5": "8ea3a385bd0b6e0933fed571ca5be9c3"
+  },
+  {
+    "filePath": "maps/Hens333/Coldwind/Rancid Abbatoir.webp",
+    "md5": "40ffd69ed6889e0d1ef32e9290942fc4"
+  },
+  {
+    "filePath": "maps/Hens333/Coldwind/Rotten Fields.webp",
+    "md5": "e4d5df0f71ac97bf23cf64695a99519c"
+  },
+  {
+    "filePath": "maps/Hens333/Coldwind/The Thompson House.webp",
+    "md5": "0bc893df193652b4f1053fafa08d3a21"
+  },
+  {
+    "filePath": "maps/Hens333/Coldwind/Torment Creek.webp",
+    "md5": "ea1da6ea5a2700cd5cbee381c8d93790"
+  },
+  {
+    "filePath": "maps/Hens333/Crotus Pen/Disturbed Ward.webp",
+    "md5": "7d9971feb6911a70c9bc09198ce51e73"
+  },
+  {
+    "filePath": "maps/Hens333/Crotus Pen/Father Campbells Chapel.webp",
+    "md5": "c4a428978cd6c0c12b5458838f499bb6"
+  },
+  {
+    "filePath": "maps/Hens333/Dvarka Deepwood/Nostromo Wreckage.webp",
+    "md5": "51298574775d9e6b2bdea9826750ea1e"
+  },
+  {
+    "filePath": "maps/Hens333/Dvarka Deepwood/Toba Landing.webp",
+    "md5": "281fbaeefd7fa8351fb1b0e6bba66ade"
+  },
+  {
+    "filePath": "maps/Hens333/Forsaken Boneyard/Dead Sands.webp",
+    "md5": "24660659fd693c00924c6cacdd47b0c2"
+  },
+  {
+    "filePath": "maps/Hens333/Forsaken Boneyard/Eyrie of Crows.webp",
+    "md5": "3741c07c7e360749277bbb986191dd90"
+  },
+  {
+    "filePath": "maps/Hens333/McMillan/Coal Tower II.webp",
+    "md5": "e9fa4930c64278ae82822bf9554c62e2"
+  },
+  {
+    "filePath": "maps/Hens333/McMillan/Coal Tower.webp",
+    "md5": "1ef86176d40330de27bca9f88f996e7b"
+  },
+  {
+    "filePath": "maps/Hens333/McMillan/Groaning Storehouse II.webp",
+    "md5": "222173580d965fae7d99695b17681ef4"
+  },
+  {
+    "filePath": "maps/Hens333/McMillan/Groaning Storehouse.webp",
+    "md5": "e1870e8c86cd5c9043dcf0aeb2467324"
+  },
+  {
+    "filePath": "maps/Hens333/McMillan/Ironworks Of Misery II.webp",
+    "md5": "b1928ce987e67856ccbe4f79dca2c08c"
+  },
+  {
+    "filePath": "maps/Hens333/McMillan/Ironworks Of Misery.webp",
+    "md5": "a7c0c01b35c7cd4be5a5b082eb6093a2"
+  },
+  {
+    "filePath": "maps/Hens333/McMillan/Shelter Woods II.webp",
+    "md5": "ee97afc41aedd9aa34dcea6564065ca6"
+  },
+  {
+    "filePath": "maps/Hens333/McMillan/Shelter Woods.webp",
+    "md5": "69fb65832560a5d470cd3ae277d1f9c2"
+  },
+  {
+    "filePath": "maps/Hens333/McMillan/Suffocation Pit II.webp",
+    "md5": "61764dce231561667afa0d61d4a660a6"
+  },
+  {
+    "filePath": "maps/Hens333/McMillan/Suffocation Pit.webp",
+    "md5": "cdd1d51aa69ce2b606d67fd03d6f2dc9"
+  },
+  {
+    "filePath": "maps/Hens333/Ormond/Lake Mine.webp",
+    "md5": "a4e99713acd7efcbabe16d396135b997"
+  },
+  {
+    "filePath": "maps/Hens333/Ormond/Ormond II.webp",
+    "md5": "6317e40cc7818082f5d971f820948a73"
+  },
+  {
+    "filePath": "maps/Hens333/Ormond/Ormond III.webp",
+    "md5": "d03433e1d673c1aaf8dd8a7a939051b0"
+  },
+  {
+    "filePath": "maps/Hens333/Ormond/Ormond.webp",
+    "md5": "17c04df5623c395ffe872b724899c992"
+  },
+  {
+    "filePath": "maps/Hens333/Other/Dead Dawg Saloon.webp",
+    "md5": "e3bca6beb72d02762bdc459d899d6e95"
+  },
+  {
+    "filePath": "maps/Hens333/Other/Haddonfield.webp",
+    "md5": "9f221457bce105d032ba1fd43602f3cc"
+  },
+  {
+    "filePath": "maps/Hens333/Other/Hawkins.webp",
+    "md5": "79a5573864caac0bb4ee397591b472d5"
+  },
+  {
+    "filePath": "maps/Hens333/Other/Lerys.webp",
+    "md5": "c7d3935d4816aca70f9dfa1228806e98"
+  },
+  {
+    "filePath": "maps/Hens333/Other/Midwich.webp",
+    "md5": "cbdaa6505c51e0d9dc4d8024750df8e6"
+  },
+  {
+    "filePath": "maps/Hens333/Other/The Game.webp",
+    "md5": "366d43bec4f31f804c697030cc1f6957"
+  },
+  {
+    "filePath": "maps/Hens333/Raccoon City/Rpd East Wing.webp",
+    "md5": "94e92dfaa415497d3f00c0167dcaba6b"
+  },
+  {
+    "filePath": "maps/Hens333/Raccoon City/Rpd West Wing.webp",
+    "md5": "1213a0b1016759d594c9e2a40e32c31c"
+  },
+  {
+    "filePath": "maps/Hens333/Red Forest/Mothers Dwelling.webp",
+    "md5": "ef2cfa9b0a4fe57453acdf7339c7bd9e"
+  },
+  {
+    "filePath": "maps/Hens333/Red Forest/Temple of Purgation.webp",
+    "md5": "65aacdf97ef7bdb1456c3b3798d55e1a"
+  },
+  {
+    "filePath": "maps/Hens333/Swamp/Grim Pantry.webp",
+    "md5": "ecfd08116231aff6170be91eb45aa004"
+  },
+  {
+    "filePath": "maps/Hens333/Swamp/Pale Rose.webp",
+    "md5": "cf89ab3756d628641eef78860e80fc6d"
+  },
+  {
+    "filePath": "maps/Hens333/Withered Isle/Fallen Refuge.webp",
+    "md5": "858f6baebc0dfc38f17a09ce8edb0caa"
+  },
+  {
+    "filePath": "maps/Hens333/Withered Isle/Freddy Fazbears Pizza.webp",
+    "md5": "1cfae97b3c37ec3632dfbfc174da9360"
+  },
+  {
+    "filePath": "maps/Hens333/Withered Isle/Garden of Joy.webp",
+    "md5": "303a6ab7c1c68705973aabfdf0809fe7"
+  },
+  {
+    "filePath": "maps/Hens333/Withered Isle/Greenville Square.webp",
+    "md5": "d69ae77b0a6b0eefa53c72b175a47fcf"
+  },
+  {
+    "filePath": "maps/Hens333/Yamaoka/Family Residence II.webp",
+    "md5": "e99668c8068237acf54d13c0941caebf"
+  },
+  {
+    "filePath": "maps/Hens333/Yamaoka/Family Residence.webp",
+    "md5": "57b139503493d0ba239b040892c634a2"
+  },
+  {
+    "filePath": "maps/Hens333/Yamaoka/Sanctum of Wrath II.webp",
+    "md5": "bf05de6ffda386b53fb984f1d596664b"
+  },
+  {
+    "filePath": "maps/Hens333/Yamaoka/Sanctum of Wrath.webp",
+    "md5": "197aef6099b34f48977f312a96d2ae12"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Autohaven Wreckers/Azarov Resting Place.png",
+    "md5": "d99fe024e153e2d084f8e001da1a48b0"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Autohaven Wreckers/Blood Lodge.png",
+    "md5": "937582fab06bd2754fed3c997f934ef4"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Autohaven Wreckers/Gas Heaven.png",
+    "md5": "03b8f227b4d4273e7cabfbafe750e824"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Autohaven Wreckers/Wreckers Yard.png",
+    "md5": "f7ae135566f6c3fa337a810aae788bbd"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Autohaven Wreckers/Wretched Shop.png",
+    "md5": "1b09c65742f0ebe144738ded66dfb3e0"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Backwater Swamp/Grim Pantry.png",
+    "md5": "5bb17616971ddf34bf797dd2f20f995b"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Backwater Swamp/The Pale Rose.png",
+    "md5": "f9dde0cdb098b55647b0bbcc06ef2666"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Coldwind Farm/Fractured Cowshed.png",
+    "md5": "68d27cc4109aeafc182b121e8b0e9f3a"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Coldwind Farm/Rancid Abattoir.png",
+    "md5": "0d24891aaba23b90c43afb43f53f601f"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Coldwind Farm/Rotten Fields.png",
+    "md5": "1087349b607c47f635633b7d8431d014"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Coldwind Farm/Thompson House.png",
+    "md5": "dedd9330d29abc8857347c70b4f80610"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Coldwind Farm/Torment Creek.png",
+    "md5": "80a1eb07fe0eb1be5ef50fe816de3317"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Disturbed Ward/Disturbed Ward.png",
+    "md5": "a495867bc73f01f0e3f958f961e709a8"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Disturbed Ward/Father Campbell Chapel.png",
+    "md5": "2709930a231345433c5b0062fbb307d3"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Dvarka Deepwood/Nostromo Wreckage.png",
+    "md5": "273d4082faccc596ed31d564b016e226"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Dvarka Deepwood/Toba Landing.png",
+    "md5": "d3554bd8bf8666209406b0cb17f25713"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Forsaken Boneyard/Eyrie of Crows.png",
+    "md5": "a1585775b90934556defdc2efa604c98"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Gideon Meat Plant/The Game 1 (Upper Floor).png",
+    "md5": "d45e70df6814fd4a653bcb750ee8cea7"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Gideon Meat Plant/The Game 2 (Lower Floor).png",
+    "md5": "1241a082409358cba16018639e268644"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Gideon Meat Plant/The Game 3 (Both Floors).png",
+    "md5": "f8a6fff73e49f01e6262c86312954ecd"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Grave of Glenvale/Dead Dawg Saloon.png",
+    "md5": "40120be5e3bfb8580924d1f634663d26"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Haddonfield/Lampkin Lane.png",
+    "md5": "318747d3708a6e44a68e2851f05acbb8"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Hawkins National Laboratory/The Underground Complex.png",
+    "md5": "3f407cb91076ff20cdc017bb60c1c236"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Lery's Memorial Institute/Lery's Memorial Institute.png",
+    "md5": "633d6dfcac22c92eb12b54d612926acd"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Ormond/Mount Ormond Resort 1.png",
+    "md5": "aba6136baf8d1bd91212ac4dc5498093"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Ormond/Mount Ormond Resort 2.png",
+    "md5": "679ef045437d01e7992fa2efc39c5511"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Ormond/Mount Ormond Resort 3.png",
+    "md5": "025a3dee5ddc131b1ccffafc8eeaca45"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Ormond/Ormond Lake Mine.png",
+    "md5": "1a1bfac0ab8ab1cbf401d57d9b9e49f7"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Raccoon City/Raccoon City East (Both Floors).png",
+    "md5": "8363d4206526365ccea6da2d32f5f7dd"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Raccoon City/Raccoon City East (Lower Floor).png",
+    "md5": "820ed24e4993d7ee8ba33bef710a4db4"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Raccoon City/Raccoon City East (Upper Floor).png",
+    "md5": "10592c3ca1ecf8715d4d120917747c89"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Raccoon City/Raccoon City West (Both Floor).png",
+    "md5": "0fde6d907b44a8336f9dc3c1d66511c4"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Raccoon City/Raccoon City West (Lower Floor).png",
+    "md5": "3adb55380307db97d1525cddc57e50f2"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Raccoon City/Raccoon City West (Upper Floor).png",
+    "md5": "9c840361667852c64fa267ee0a5f2a4e"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Red Forest/Mother's Dwelling 1.png",
+    "md5": "802af002c33a58554a252373283e4880"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Red Forest/The Temple of Purgation.png",
+    "md5": "b9f40b240edcc25171d23d46ba88349b"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Silent Hill/Midwich 1 (Lower Floor).png",
+    "md5": "8850b3a08af61e19106351a0d62fc512"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Silent Hill/Midwich 2 (Upper Floor).png",
+    "md5": "d13171dd14ca9d15c988fef27ccf0acc"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Silent Hill/Midwich 3 (Both Floors).png",
+    "md5": "879937c6fc6b936380a006a21dacb5b8"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Springwood/Badham Preeschool 1.png",
+    "md5": "81f966b2c31bdd803f5e86d8a17d42c7"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Springwood/Badham Preeschool 2.png",
+    "md5": "6a49abb889a3f260710b1501f8bfdd77"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Springwood/Badham Preeschool 3.png",
+    "md5": "3a660a0a3db21562262b6aac251492ca"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Springwood/Badham Preeschool 4.png",
+    "md5": "62c834c1c8f6bea4d963dbe67794a4f9"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Springwood/Badham Preeschool 5.png",
+    "md5": "9f22fbc30e91120dbcb0933ed4af5411"
+  },
+  {
+    "filePath": "maps/KaiserAleex/The Decimated Borgo/Forgotten Ruins 1.png",
+    "md5": "85efc2a57f0f3dcd8219993024409db8"
+  },
+  {
+    "filePath": "maps/KaiserAleex/The Decimated Borgo/Forgotten Ruins 2.png",
+    "md5": "f9caf729d810b6e4b66d3ed08e3c8f2c"
+  },
+  {
+    "filePath": "maps/KaiserAleex/The Decimated Borgo/The Shattered Square.png",
+    "md5": "3a03ae77289f68af107bda991d7dacac"
+  },
+  {
+    "filePath": "maps/KaiserAleex/The Macmillan Estate/Coal Tower 1.png",
+    "md5": "38a03b3068244aa728774c883f894009"
+  },
+  {
+    "filePath": "maps/KaiserAleex/The Macmillan Estate/Coal Tower 2.png",
+    "md5": "54044ae3d02c242735a258808de237bb"
+  },
+  {
+    "filePath": "maps/KaiserAleex/The Macmillan Estate/Groaning Storehouse 1.png",
+    "md5": "9c4b5ca9de1d73c36725d8a8db1fc31d"
+  },
+  {
+    "filePath": "maps/KaiserAleex/The Macmillan Estate/Groaning Storehouse 2.png",
+    "md5": "be74ce89a486b83497d3bc0f29a8a422"
+  },
+  {
+    "filePath": "maps/KaiserAleex/The Macmillan Estate/Ironworks of Misery 1.png",
+    "md5": "f6347cc85bc0eaa6da194fdd31209336"
+  },
+  {
+    "filePath": "maps/KaiserAleex/The Macmillan Estate/Ironworks of Misery 2.png",
+    "md5": "d3496f44857d61429ff98888e528c2b7"
+  },
+  {
+    "filePath": "maps/KaiserAleex/The Macmillan Estate/Shelter Woods 1.png",
+    "md5": "11bd74f25a2f042f60080c8fd86c7e83"
+  },
+  {
+    "filePath": "maps/KaiserAleex/The Macmillan Estate/Shelter Woods 2.png",
+    "md5": "eca92425b4060d86d6425fb756c8dd72"
+  },
+  {
+    "filePath": "maps/KaiserAleex/The Macmillan Estate/Suffocation Pit 1.png",
+    "md5": "a5e57695f7dd3d3c1374cde4b31b434a"
+  },
+  {
+    "filePath": "maps/KaiserAleex/The Macmillan Estate/Suffocation Pit 2.png",
+    "md5": "41b64a4b621936cffec39ba6ccb29e29"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Withered Isle/Garden of Joy.png",
+    "md5": "c8ded9185f4847652996c04ecf5b8bcd"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Withered Isle/Greenville Square.png",
+    "md5": "15e2df079ec5ab6c525cc6b0c4e9c76d"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Yamaoka Estate/Family Residence 1.png",
+    "md5": "3da294d4851140dc03b537ebfba59c77"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Yamaoka Estate/Family Residence 2.png",
+    "md5": "2ca0db55305923f4fef6902eaab75621"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Yamaoka Estate/Sanctum of Wrath 1.png",
+    "md5": "43e88d808031396541cc15b68402255b"
+  },
+  {
+    "filePath": "maps/KaiserAleex/Yamaoka Estate/Sanctum of Wrath 2.png",
+    "md5": "30b0d36c65d33e2ca8e953e42302c328"
+  },
+  {
+    "filePath": "maps/SamoelColt/Autohaven Wreckers/Azarov's Resting Place.jpg",
+    "md5": "86bafc84fb6f1485bf7d0b831799e741"
+  },
+  {
+    "filePath": "maps/SamoelColt/Autohaven Wreckers/Blood Lodge.jpg",
+    "md5": "fe1b8020e36ee9d69d29a4f23a6a246a"
+  },
+  {
+    "filePath": "maps/SamoelColt/Autohaven Wreckers/Gas Heaven.jpg",
+    "md5": "25c31c43dd71401bd6a637a86a20ba52"
+  },
+  {
+    "filePath": "maps/SamoelColt/Autohaven Wreckers/Wreckers' Yard.jpg",
+    "md5": "81f0b4eb4851fce07fe79e9446779017"
+  },
+  {
+    "filePath": "maps/SamoelColt/Autohaven Wreckers/Wretched Shop.jpg",
+    "md5": "c7a9bfb46f9e2d70364d65a3a06a212d"
+  },
+  {
+    "filePath": "maps/SamoelColt/Backwater Swamp/Grim Pantry.jpg",
+    "md5": "2106015914687359c382b45ec728fe84"
+  },
+  {
+    "filePath": "maps/SamoelColt/Backwater Swamp/The Pale Rose.jpg",
+    "md5": "00c9a3dec71f1119933f52039a60662c"
+  },
+  {
+    "filePath": "maps/SamoelColt/Coldwind Farm/Fractured Cowshed.jpg",
+    "md5": "6003adcc6867c5e96110e17b2f6e36cd"
+  },
+  {
+    "filePath": "maps/SamoelColt/Coldwind Farm/Rancid Abattoir.jpg",
+    "md5": "28fc1e93a806a2d6de2172c0fe00f711"
+  },
+  {
+    "filePath": "maps/SamoelColt/Coldwind Farm/Rotten Fields.jpg",
+    "md5": "d9a4272a6822f0945fed818dd9cf4003"
+  },
+  {
+    "filePath": "maps/SamoelColt/Coldwind Farm/Thompson House.jpg",
+    "md5": "b4c4c29359cd9345ace8cf260520f36c"
+  },
+  {
+    "filePath": "maps/SamoelColt/Coldwind Farm/Torment Creek.jpg",
+    "md5": "6b60d466c086028af21c995c79646679"
+  },
+  {
+    "filePath": "maps/SamoelColt/Disturbed Ward/Crotus Prenn Asylum.jpg",
+    "md5": "cb82e988b2e52ba8acaa4f87fc2b22d3"
+  },
+  {
+    "filePath": "maps/SamoelColt/Disturbed Ward/Father Cambell's Chapel.jpg",
+    "md5": "386bc0b764192ba856c28bb624e5f0d1"
+  },
+  {
+    "filePath": "maps/SamoelColt/Dvarka Deepwood/Nostromo Wreckage.jpg",
+    "md5": "5cb154c7ed16e8b9f1bcf350655f0a3a"
+  },
+  {
+    "filePath": "maps/SamoelColt/Dvarka Deepwood/Toba Landing.jpg",
+    "md5": "33d078fbf88d1577bfe065944c855657"
+  },
+  {
+    "filePath": "maps/SamoelColt/Forsaken Boneyard/Dead Sands.jpg",
+    "md5": "4759fcdd520c3013e295f21862b491ec"
+  },
+  {
+    "filePath": "maps/SamoelColt/Forsaken Boneyard/Eyrie of Crows.jpg",
+    "md5": "1d10fa420a375917c1848838f9d1d517"
+  },
+  {
+    "filePath": "maps/SamoelColt/Gideon Meat Plant/The Game.jpg",
+    "md5": "542f6448e3ca27c7536c9e17f8d92c93"
+  },
+  {
+    "filePath": "maps/SamoelColt/Gideon Meat Plant/The Game_1.jpg",
+    "md5": "c13c867bb643af97b90de25a5ec8ee86"
+  },
+  {
+    "filePath": "maps/SamoelColt/Grave of Glenvale/Dead Dawg Saloon.jpg",
+    "md5": "b31eb73168f6d0dba2a499e2a8410625"
+  },
+  {
+    "filePath": "maps/SamoelColt/Haddonfield/Lampkin Lane.jpg",
+    "md5": "bf812988bf10142b85dd9e1cb7f245a7"
+  },
+  {
+    "filePath": "maps/SamoelColt/Hawkins National Laboratory/The Underground Complex.jpg",
+    "md5": "8d5d7c6e3af3be382cfe184ca1dfd51b"
+  },
+  {
+    "filePath": "maps/SamoelColt/Lery's Memorial Institute/Treatment Theatre.jpg",
+    "md5": "8cae4919e296e565c56b2e16c2625c17"
+  },
+  {
+    "filePath": "maps/SamoelColt/Ormond/Lake Mine.jpg",
+    "md5": "ebb59ec030a319ed2e751bcadfe87523"
+  },
+  {
+    "filePath": "maps/SamoelColt/Ormond/Mount Ormond Resort v1.jpg",
+    "md5": "b51126b1d5abbf3be2f363c45609b51d"
+  },
+  {
+    "filePath": "maps/SamoelColt/Ormond/Mount Ormond Resort v2.jpg",
+    "md5": "4bff35a14d4d1e07591f502c2cb9fc35"
+  },
+  {
+    "filePath": "maps/SamoelColt/Ormond/Mount Ormond Resort.jpg",
+    "md5": "3c186eed7420280952c2a85887caa778"
+  },
+  {
+    "filePath": "maps/SamoelColt/Raccoon City/Raccoon City Police Station.jpg",
+    "md5": "20d1cd24583ba2b18a3bd146f5cee037"
+  },
+  {
+    "filePath": "maps/SamoelColt/Raccoon City/Raccoon City Police Station_1.jpg",
+    "md5": "8fd19f7e3afcd61526f32047d7656ced"
+  },
+  {
+    "filePath": "maps/SamoelColt/Red Forest/Mother's Dwelling.jpg",
+    "md5": "68deb07b343f8f4c6d1a0d9593fb0201"
+  },
+  {
+    "filePath": "maps/SamoelColt/Red Forest/The Temple of Purgation.jpg",
+    "md5": "6eab66530f3cb0b34321ef3d622e03ca"
+  },
+  {
+    "filePath": "maps/SamoelColt/Silent Hill/Midwich  Elementary  School.jpg",
+    "md5": "bb7a547308efa9d4759f80aa25a95d2d"
+  },
+  {
+    "filePath": "maps/SamoelColt/Silent Hill/Midwich  Elementary  School_1.jpg",
+    "md5": "b16714c7e005bb1fde2c97fdbf349e63"
+  },
+  {
+    "filePath": "maps/SamoelColt/Springwood/Badham Preschool I.jpg",
+    "md5": "99dfb98bea055ba0d9d368989c14eeeb"
+  },
+  {
+    "filePath": "maps/SamoelColt/Springwood/Badham Preschool II.jpg",
+    "md5": "73172f56fae7c726ea431d1b5b422edf"
+  },
+  {
+    "filePath": "maps/SamoelColt/Springwood/Badham Preschool III.jpg",
+    "md5": "a98b823a80c347c8f353eab541641688"
+  },
+  {
+    "filePath": "maps/SamoelColt/Springwood/Badham Preschool IV.jpg",
+    "md5": "3f54f8e338c445aa59aba8c78790f3bd"
+  },
+  {
+    "filePath": "maps/SamoelColt/Springwood/Badham Preschool V.jpg",
+    "md5": "8c56cde578c944b236fae579e85a4913"
+  },
+  {
+    "filePath": "maps/SamoelColt/The Decimated Borgo/Forgotten Ruins.jpg",
+    "md5": "0abbfabff489a52b9a2f560b2bfb2a1a"
+  },
+  {
+    "filePath": "maps/SamoelColt/The Decimated Borgo/Forgotten Ruins_1.jpg",
+    "md5": "d4d17d1575cf73d5a1309534259b72e2"
+  },
+  {
+    "filePath": "maps/SamoelColt/The Decimated Borgo/The Shattered square.jpg",
+    "md5": "e11aee272a0d9ce00f072087a9cda2a6"
+  },
+  {
+    "filePath": "maps/SamoelColt/The Macmillan Estate/Coal Tower II.jpg",
+    "md5": "1f9e1a3ed12924550c9adbab673d6cfc"
+  },
+  {
+    "filePath": "maps/SamoelColt/The Macmillan Estate/Coal Tower.jpg",
+    "md5": "8fa6c995cddad1cd9e08d9aa121191a7"
+  },
+  {
+    "filePath": "maps/SamoelColt/The Macmillan Estate/Groaning Storehouse II.jpg",
+    "md5": "d8ef711292d2a4d769baec4b25667817"
+  },
+  {
+    "filePath": "maps/SamoelColt/The Macmillan Estate/Groaning Storehouse.jpg",
+    "md5": "b986000308e79d1a39ba3f937158bb0c"
+  },
+  {
+    "filePath": "maps/SamoelColt/The Macmillan Estate/Ironworks of Misery II.jpg",
+    "md5": "7090446003cb4836b745678ddca0eb43"
+  },
+  {
+    "filePath": "maps/SamoelColt/The Macmillan Estate/Ironworks of Misery.jpg",
+    "md5": "d6b9e433c01e8f0041a3c88ffa0951ce"
+  },
+  {
+    "filePath": "maps/SamoelColt/The Macmillan Estate/Shelter Woods II.jpg",
+    "md5": "0cf617e2eeb132236d39d9355ace7375"
+  },
+  {
+    "filePath": "maps/SamoelColt/The Macmillan Estate/Shelter Woods.jpg",
+    "md5": "2af85fda8181a4aa864b9b87399b6111"
+  },
+  {
+    "filePath": "maps/SamoelColt/The Macmillan Estate/Suffocation Pit II.jpg",
+    "md5": "4168855aab3770e90678122fa5a16985"
+  },
+  {
+    "filePath": "maps/SamoelColt/The Macmillan Estate/Suffocation Pit.jpg",
+    "md5": "b05719f0495ba0a858c09c9f8fc3cfd1"
+  },
+  {
+    "filePath": "maps/SamoelColt/Withered Isle/Freddy Fazbear's Pizza.jpg",
+    "md5": "240c713306f48fcd038ebf7fd4fe7a15"
+  },
+  {
+    "filePath": "maps/SamoelColt/Withered Isle/Garden of Joy.jpg",
+    "md5": "416ff45e35b0310e0dc088eea5df6dff"
+  },
+  {
+    "filePath": "maps/SamoelColt/Withered Isle/Greenville Square.jpg",
+    "md5": "89b2a8db19ca8b226fb49f6adf128cb4"
+  },
+  {
+    "filePath": "maps/SamoelColt/Yamaoka Estate/Family Residence v1.jpg",
+    "md5": "8b0f580d385d2a9d39b6fd85fa798c08"
+  },
+  {
+    "filePath": "maps/SamoelColt/Yamaoka Estate/Family Residence.jpg",
+    "md5": "7681135a52bce9ac03034903c4959607"
+  },
+  {
+    "filePath": "maps/SamoelColt/Yamaoka Estate/Sanctum of Wrath v1.jpg",
+    "md5": "0345883149acbec86f92c8b9509a2b65"
+  },
+  {
+    "filePath": "maps/SamoelColt/Yamaoka Estate/Sanctum of Wrath.jpg",
+    "md5": "e7198e43ce96ca2c53476964d8cfbafc"
+  }
+]
