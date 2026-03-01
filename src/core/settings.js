@@ -14,7 +14,9 @@ const defaultConfig = {
     minimizeToTray: false,
     disableFaqPopup: false,
     rotation: 0,
-    monitor: 0
+    monitor: 0,
+    overlayX: null,
+    overlayY: null
 };
 
 class Settings {

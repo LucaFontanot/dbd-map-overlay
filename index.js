@@ -55,7 +55,7 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
 
     const settings = new Settings();
     const obsWindow = new ObsWindow();
-    const overlayWindow = new OverlayWindow();
+    const overlayWindow = new OverlayWindow(settings);
     const mainWindow = new MainWindow(obsWindow, overlayWindow, settings);
     const hotkeys = new Hotkeys(mainWindow);
     const userData = new UserData();
