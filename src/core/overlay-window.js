@@ -49,6 +49,8 @@ class OverlayWindow {
         this.window.setIgnoreMouseEvents(true, { forward: true });
 
         this.window.on('moved', () => {
+            console.log("Window moved");
+            console.log(this.window.getBounds());
             if (this.settings && this.settings.get('draggable') && this.window) {
                 const bounds = this.window.getBounds();
                 this.settings.set('overlayX', bounds.x);

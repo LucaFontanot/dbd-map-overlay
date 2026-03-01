@@ -60,8 +60,17 @@ class MainWindow {
                     ...selectedDisplay.workArea,
                     width: 0,
                     height: 0,
+                    x: this.settings.get('overlayX'),
+                    y: this.settings.get('overlayY')
                 })
                 overlayWindow.setSize(parseInt(settings.get('size')) + 5, parseInt((settings.get('size') / dimensions.width) * dimensions.height * 1.1))
+                console.log("Selected display:", selectedDisplay);
+                console.log("Overlay bounds:", overlayWindow.getBounds());
+                console.log("Image dimensions:", dimensions);
+                console.log("Calculated overlay size:", {width: parseInt(settings.get('size')) + 5, height: parseInt((settings.get('size') / dimensions.width) * dimensions.height * 1.1)});
+                console.log("Display bounds:", {x: displayX, y: displayY, width, height});
+                console.log("Overlay position setting:", settings.get('position'));
+                console.log("Draggable setting:", settings.get('draggable'));
                 if (!settings.get('draggable')) {
                     switch (settings.get('position')) {
                         case "1":
