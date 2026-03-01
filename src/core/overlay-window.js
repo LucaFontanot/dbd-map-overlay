@@ -2,7 +2,10 @@ const {BrowserWindow, ipcMain} = require('electron');
 
 class OverlayWindow {
     window = null;
-    constructor() {
+    settings = null;
+
+    constructor(settings) {
+        this.settings = settings || null;
         let classInstance = this;
         ipcMain.on('set-mouse-drag', async (event, drag) => {
             if (!classInstance.window) return
@@ -19,11 +22,14 @@ class OverlayWindow {
             if (!this.window.isDestroyed()) return
             this.window = null;
         }
+        const isDraggable = this.settings && this.settings.get('draggable');
+        const savedX = this.settings && this.settings.get('overlayX');
+        const savedY = this.settings && this.settings.get('overlayY');
         this.window = new BrowserWindow({
             width: 0,
             height: 0,
-            x: 0,
-            y: 0,
+            x: (isDraggable && savedX !== null && savedX !== undefined) ? savedX : 0,
+            y: (isDraggable && savedY !== null && savedY !== undefined) ? savedY : 0,
             maximizable: true,
             minimizable: false,
             focusable: false,
@@ -41,6 +47,14 @@ class OverlayWindow {
         this.window.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
         this.window.setSkipTaskbar(true);
         this.window.setIgnoreMouseEvents(true);
+
+        this.window.on('moved', () => {
+            if (this.settings && this.settings.get('draggable') && this.window) {
+                const bounds = this.window.getBounds();
+                this.settings.set('overlayX', bounds.x);
+                this.settings.set('overlayY', bounds.y);
+            }
+        });
     }
 
     send(event, ...data) {

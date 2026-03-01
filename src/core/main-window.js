@@ -56,10 +56,10 @@ class MainWindow {
                 const monitorIndex = parseInt(settings.get('monitor')) || 0;
                 const selectedDisplay = displays[monitorIndex] || displays[0] || screen.getPrimaryDisplay();
                 const {x: displayX, y: displayY, width, height} = selectedDisplay.workArea;
-                overlayWindow.setBounds(selectedDisplay.workArea)
-                overlayWindow.setSize(parseInt(settings.get('size')) + 5, parseInt((settings.get('size') / dimensions.width) * dimensions.height * 1.1))
                 if (!settings.get('draggable')) {
-                    switch (settings.get('position')) {
+                    overlayWindow.setBounds(selectedDisplay.workArea)
+                    overlayWindow.setSize(parseInt(settings.get('size')) + 5, parseInt((settings.get('size') / dimensions.width) * dimensions.height * 1.1))
+                    switch (String(settings.get('position'))) {
                         case "1":
                             overlayWindow.setPosition(displayX, displayY);
                             break;
@@ -73,6 +73,8 @@ class MainWindow {
                             overlayWindow.setPosition(displayX + width - overlayWindow.getBounds().width, displayY + height - overlayWindow.getBounds().height);
                             break;
                     }
+                } else {
+                    overlayWindow.setSize(parseInt(settings.get('size')) + 5, parseInt((settings.get('size') / dimensions.width) * dimensions.height * 1.1))
                 }
                 if (!settings.get('hideOverlay')) {
                     overlayWindow.send('map-change', Buffer.from(imgData).toString("base64"), settings.get('size'), settings.get('opacity'), settings.get('draggable'), settings.get('rotation'))
