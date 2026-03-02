@@ -1,3 +1,7 @@
+## 1.5.4
+- Fixed a bug that caused the overlay to not place in the correct position
+- Fixed the custom position of the overlay not being saved
+
 ## 1.5.3
 - Added support for rotation of the overlay displayed image (not synced yet)
 - Fix wayland support
