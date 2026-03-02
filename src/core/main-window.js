@@ -60,8 +60,8 @@ class MainWindow {
                     ...selectedDisplay.workArea,
                     width: 0,
                     height: 0,
-                    x: this.settings.get('overlayX'),
-                    y: this.settings.get('overlayY')
+                    x: this.settings.get('overlayX') || 0,
+                    y: this.settings.get('overlayY') || 0
                 })
                 overlayWindow.setSize(parseInt(settings.get('size')) + 5, parseInt((settings.get('size') / dimensions.width) * dimensions.height * 1.1))
                 console.log("Selected display:", selectedDisplay);
