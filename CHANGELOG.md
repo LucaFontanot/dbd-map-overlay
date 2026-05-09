@@ -1,3 +1,8 @@
+## 1.6.0
+- Added automatic map detection with tesseract OCR
+- Added option to choose the language for OCR
+- Added localizations for all maps in all languages
+
 ## 1.5.4
 - Fixed a bug that caused the overlay to not place in the correct position
 - Fixed the custom position of the overlay not being saved
