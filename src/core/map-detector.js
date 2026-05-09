@@ -74,7 +74,7 @@ class MapDetector {
         this.workers = [];
         this.timer = null;
         this.running = false;
-        this.intervalMs = 10_000;
+        this.intervalMs = 4500;
 
         /** Maps every localised string (lowercase) to its English key */
         this.reverseI18n = new Map();
@@ -309,15 +309,49 @@ class MapDetector {
      * @param {string[]} lines
      * @returns {{ realm: string, map: string } | null}
      */
+    _levenshtein(a, b) {
+        const m = a.length, n = b.length;
+        const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+        for (let j = 0; j <= n; j++) dp[0][j] = j;
+        for (let i = 1; i <= m; i++)
+            for (let j = 1; j <= n; j++)
+                dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1]
+                    : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+        return dp[m][n];
+    }
+
+    _fuzzyMatchRealmKey(raw) {
+        // Allow up to 2 edit-distance errors (handles single OCR misreads like D→O)
+        const MAX_DIST = 2;
+        let best = null, bestDist = MAX_DIST + 1;
+        for (const realmKey of this.realmKeys) {
+            const dist = this._levenshtein(raw, realmKey);
+            if (dist < bestDist) { bestDist = dist; best = realmKey; }
+        }
+        return bestDist <= MAX_DIST ? best : null;
+    }
+
     _matchLines(lines) {
         console.log(`MapDetector: matching ${lines.length} line(s) against i18n tables`);
         for (let i = 0; i < lines.length; i++) {
             const raw = lines[i].toLowerCase().trim();
+
+            // Exact i18n lookup first
             const key = this.reverseI18n.get(raw);
             console.log(`MapDetector: line [${i}] "${raw}" → ${key ?? 'NO MATCH'}`);
             if (key) {
                 console.log(`MapDetector: matched map="${key}"`);
                 return { realm: null, map: key };
+            }
+
+            // Fuzzy fallback against realmKeys (catches OCR misreads like "wARO"→"WARD")
+            if (raw.length >= 4) {
+                const fuzzy = this._fuzzyMatchRealmKey(raw);
+                if (fuzzy) {
+                    const resolved = this.reverseI18n.get(fuzzy) ?? fuzzy;
+                    console.log(`MapDetector: line [${i}] fuzzy matched "${raw}" → "${fuzzy}" → "${resolved}"`);
+                    return { realm: null, map: resolved };
+                }
             }
         }
         console.log('MapDetector: no map found in lines');
