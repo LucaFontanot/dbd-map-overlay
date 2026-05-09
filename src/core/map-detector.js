@@ -74,10 +74,13 @@ class MapDetector {
         this.workers = [];
         this.timer = null;
         this.running = false;
-        this.intervalMs = 4500;
+        this.intervalMs = 3500;
 
         /** Maps every localised string (lowercase) to its English key */
         this.reverseI18n = new Map();
+
+        /** Same map but with special chars stripped — catches OCR apostrophe/accent drops */
+        this.normalizedI18n = new Map();
 
         /** English realm names (lowercase) derived from i18n + photo directory */
         this.realmKeys = new Set();
@@ -118,6 +121,11 @@ class MapDetector {
                     this.reverseI18n.set(localizedValue.toLowerCase().trim(), englishKey);
                     // english → english    (handles EN players with no translation)
                     this.reverseI18n.set(englishKey.toLowerCase().trim(), englishKey);
+                    // normalized → english  (handles OCR dropping apostrophes/accents)
+                    const normLocalized = localizedValue.toLowerCase().trim().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+                    const normEnglish   = englishKey.toLowerCase().trim().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+                    if (normLocalized.length > 2 && !this.normalizedI18n.has(normLocalized)) this.normalizedI18n.set(normLocalized, englishKey);
+                    if (normEnglish.length > 2   && !this.normalizedI18n.has(normEnglish))   this.normalizedI18n.set(normEnglish, englishKey);
                 }
                 console.log(`MapDetector: [i18n] ${file} → ${entries.length} entries`);
             } catch {
@@ -271,6 +279,7 @@ class MapDetector {
             .greyscale()
             .normalize()
             .negate()
+            .blur(0.5)   // smooth anti-aliased edges before binarisation — prevents single-word splits
             .threshold(128)
             .png()
             .toBuffer();
@@ -333,8 +342,8 @@ class MapDetector {
     }
 
     _fuzzyMatchRealmKey(raw) {
-        // Allow up to 2 edit-distance errors (handles single OCR misreads like D→O)
-        const MAX_DIST = 2;
+        // Scale tolerance with length: ~18 % of chars, min 2 (handles single misreads and short names)
+        const MAX_DIST = Math.max(2, Math.floor(raw.length * 0.18));
         let best = null, bestDist = MAX_DIST + 1;
         for (const realmKey of this.realmKeys) {
             const dist = this._levenshtein(raw, realmKey);
@@ -343,29 +352,92 @@ class MapDetector {
         return bestDist <= MAX_DIST ? best : null;
     }
 
+    /** Fuzzy search across all normalizedI18n keys — catches map names with OCR typos */
+    _fuzzyMatchI18n(raw) {
+        const MAX_DIST = Math.max(2, Math.floor(raw.length * 0.18));
+        let best = null, bestDist = MAX_DIST + 1;
+        for (const [key, value] of this.normalizedI18n) {
+            if (Math.abs(key.length - raw.length) > MAX_DIST) continue;
+            const dist = this._levenshtein(raw, key);
+            if (dist < bestDist) { bestDist = dist; best = value; }
+        }
+        return bestDist <= MAX_DIST ? best : null;
+    }
+
+    /**
+     * Tries every lookup strategy (exact → normalized → substring → fuzzy) for a single candidate string.
+     * @param {string} candidate  Already lowercased+trimmed
+     * @returns {string|null}     English map/realm key, or null
+     */
+    _tryMatch(candidate) {
+        const raw = candidate.toLowerCase().trim();
+
+        const exact = this.reverseI18n.get(raw);
+        if (exact) return exact;
+
+        const normRaw = raw.replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+        if (normRaw.length > 2) {
+            const normKey = this.normalizedI18n.get(normRaw);
+            if (normKey) return normKey;
+        }
+
+        // Substring: OCR captured only a suffix/prefix of the true label
+        // (e.g. "enville square" is the last 14 chars of "greenville square")
+        if (normRaw.length >= 5) {
+            for (const [key, value] of this.normalizedI18n) {
+                if (key.endsWith(normRaw) || key.startsWith(normRaw) || key.includes(normRaw)) return value;
+            }
+        }
+
+        if (raw.length >= 4) {
+            const fuzzy = this._fuzzyMatchRealmKey(raw);
+            if (fuzzy) return this.reverseI18n.get(fuzzy) ?? fuzzy;
+
+            // Broad fuzzy over all map/realm names — catches OCR typos like "fazbeare"→"fazbears"
+            const fuzzyI18n = this._fuzzyMatchI18n(normRaw.length > 2 ? normRaw : raw);
+            if (fuzzyI18n) return fuzzyI18n;
+        }
+
+        return null;
+    }
+
     _matchLines(lines) {
         console.log(`MapDetector: matching ${lines.length} line(s) against i18n tables`);
+
+        // Pass 1: each line individually
         for (let i = 0; i < lines.length; i++) {
             const raw = lines[i].toLowerCase().trim();
-
-            // Exact i18n lookup first
-            const key = this.reverseI18n.get(raw);
-            console.log(`MapDetector: line [${i}] "${raw}" → ${key ?? 'NO MATCH'}`);
-            if (key) {
-                console.log(`MapDetector: matched map="${key}"`);
-                return { realm: null, map: key };
+            const result = this._tryMatch(raw);
+            console.log(`MapDetector: line [${i}] "${raw}" → ${result ?? 'NO MATCH'}`);
+            if (result) {
+                console.log(`MapDetector: matched map="${result}"`);
+                return { realm: null, map: result };
             }
+        }
 
-            // Fuzzy fallback against realmKeys (catches OCR misreads like "wARO"→"WARD")
-            if (raw.length >= 4) {
-                const fuzzy = this._fuzzyMatchRealmKey(raw);
-                if (fuzzy) {
-                    const resolved = this.reverseI18n.get(fuzzy) ?? fuzzy;
-                    console.log(`MapDetector: line [${i}] fuzzy matched "${raw}" → "${fuzzy}" → "${resolved}"`);
-                    return { realm: null, map: resolved };
+        // Pass 2: join consecutive lines — catches OCR word-splits like "GRE"+"ENVILLE SQUARE"→"GREENVILLE SQUARE"
+        for (let i = 0; i < lines.length - 1; i++) {
+            for (let len = 2; len <= Math.min(3, lines.length - i); len++) {
+                const chunk = lines.slice(i, i + len).map(l => l.toLowerCase().trim());
+
+                // No separator first: reconstructs a single fragmented word
+                const noSep = chunk.join('');
+                const r1 = this._tryMatch(noSep);
+                if (r1) {
+                    console.log(`MapDetector: lines [${i}..${i+len-1}] concat="" → "${r1}"`);
+                    return { realm: null, map: r1 };
+                }
+
+                // Space separator: catches multi-word labels split across lines
+                const withSep = chunk.join(' ');
+                const r2 = this._tryMatch(withSep);
+                if (r2) {
+                    console.log(`MapDetector: lines [${i}..${i+len-1}] concat=" " → "${r2}"`);
+                    return { realm: null, map: r2 };
                 }
             }
         }
+
         console.log('MapDetector: no map found in lines');
         return null;
     }
@@ -415,7 +487,7 @@ class MapDetector {
             this.lastDetected = detectionKey;
 
             console.log(`MapDetector: matched → ${detectionKey}`);
-            this.mainWindow.send('show-map-command', detectionKey);
+            this.mainWindow.send('show-map-command', detectionKey.replace(/'/g, '').trim());
         } catch (err) {
             console.error('MapDetector::_detect:', err.message);
         }
