@@ -51,6 +51,11 @@ class Options {
             $("#disableFaqPopupCheck").prop("checked", true);
         }
 
+        if (settings.get("mapDetection") === true) {
+            $("#mapDetectionCheck").prop("checked", true);
+            ipcRenderer.invoke('map-detector-start');
+        }
+
         $("#hiddenCheck").on("input", async function (ev) {
             var input = $(this);
             var val = input.prop('checked');
@@ -77,6 +82,15 @@ class Options {
             var input = $(this);
             var val = input.prop('checked');
             await settings.set("disableFaqPopup", val);
+        });
+        $("#mapDetectionCheck").on("input", async function (ev) {
+            var val = $(this).prop('checked');
+            await settings.set("mapDetection", val);
+            if (val) {
+                ipcRenderer.invoke('map-detector-start');
+            } else {
+                ipcRenderer.invoke('map-detector-stop');
+            }
         });
         $("#sizeRange").on("input", async function (ev) {
             var input = $(this);

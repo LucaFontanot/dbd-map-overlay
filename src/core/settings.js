@@ -16,7 +16,8 @@ const defaultConfig = {
     rotation: 0,
     monitor: 0,
     overlayX: null,
-    overlayY: null
+    overlayY: null,
+    mapDetection: false
 };
 
 class Settings {

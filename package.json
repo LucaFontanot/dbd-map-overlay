@@ -40,7 +40,17 @@
       "!.github/*",
       "!.vscode/*",
       "!.yarn/*"
-    ]
+    ],
+    "asarUnpack": [
+      "node_modules/tesseract.js/**",
+      "node_modules/tesseract.js-core/**",
+      "node_modules/sharp/**",
+      "node_modules/@img/**"
+    ],
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "devDependencies": {
     "electron": "^40.4.1",
@@ -56,6 +66,8 @@
     "jquery": "^4.0.0",
     "marked": "^17.0.2",
     "popper.js": "^1.16.1",
+    "sharp": "^0.34.5",
+    "tesseract.js": "^7.0.0",
     "uuid": "^13.0.0"
   }
 }

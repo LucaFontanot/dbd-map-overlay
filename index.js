@@ -27,6 +27,7 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
     const UserData = require("./src/core/user-data");
     const TrayController = require("./src/core/tray");
     const StreamDeck = require("./src/core/stream-deck");
+    const MapDetector = require("./src/core/map-detector");
 
 
     const gotLock = app.requestSingleInstanceLock();
@@ -61,6 +62,7 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
     const userData = new UserData();
     const trayController = new TrayController(mainWindow);
     const streamDeck = new StreamDeck();
+    const mapDetector = new MapDetector(mainWindow, settings);
 
     if (gotLock) {
         app.on('second-instance', (event, argv, workingDirectory) => {
