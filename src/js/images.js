@@ -165,6 +165,7 @@ class Images {
                 creators.forEach(creator => {
                     $("#creatorSelect").append(`<option value="${creator}">${creator}</option>`);
                 });
+                if (this.options) this.options.populatePreferredCreators(creators);
             }
         }catch (e){
             debugLog("images::loadImages::error", e.message);
@@ -205,20 +206,27 @@ class Images {
 
     findClosestMapMatch(mapKey) {
         const normalizedKey = mapKey.replace(/\\/g, '/').trim().toLowerCase();
+        const preferred = (this.settings.get('preferredCreator') || '').toLowerCase();
 
-        for (const key of Object.keys(this.pathLookup)) {
-            const keyWithoutExt = key.replace(/\.[^.]+$/, '').toLowerCase();
-            if (keyWithoutExt === normalizedKey) {
-                return this.pathLookup[key];
-            }
+        const allKeys = Object.keys(this.pathLookup);
+
+        const exactMatch = key => key.replace(/\.[^.]+$/, '').toLowerCase() === normalizedKey;
+        const partialMatch = key => key.toLowerCase().includes(normalizedKey);
+
+        // Preferred creator — exact then partial
+        if (preferred) {
+            const inPreferred = allKeys.filter(k => k.toLowerCase().startsWith(preferred + '/'));
+            const exact = inPreferred.find(exactMatch);
+            if (exact) return this.pathLookup[exact];
+            const partial = inPreferred.find(partialMatch);
+            if (partial) return this.pathLookup[partial];
         }
 
-        const matches = Object.keys(this.pathLookup).filter(key => key.toLowerCase().includes(normalizedKey));
-        if (matches.length > 0) {
-            return this.pathLookup[matches[0]];
-        }
-
-        return null;
+        // Fallback — all creators
+        const exact = allKeys.find(exactMatch);
+        if (exact) return this.pathLookup[exact];
+        const partial = allKeys.find(partialMatch);
+        return partial ? this.pathLookup[partial] : null;
     }
 
 

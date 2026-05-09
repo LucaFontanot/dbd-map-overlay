@@ -17,7 +17,9 @@ const defaultConfig = {
     monitor: 0,
     overlayX: null,
     overlayY: null,
-    mapDetection: false
+    mapDetection: false,
+    ocrLanguage: 'all',
+    preferredCreator: ''
 };
 
 class Settings {

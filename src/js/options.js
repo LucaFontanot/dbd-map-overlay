@@ -56,6 +56,12 @@ class Options {
             ipcRenderer.invoke('map-detector-start');
         }
 
+        const savedLang = settings.get("ocrLanguage") || 'all';
+        $("#ocrLanguageSelect").val(savedLang);
+
+        const savedCreator = settings.get("preferredCreator") || '';
+        $("#preferredCreatorSelect").val(savedCreator);
+
         $("#hiddenCheck").on("input", async function (ev) {
             var input = $(this);
             var val = input.prop('checked');
@@ -91,6 +97,22 @@ class Options {
             } else {
                 ipcRenderer.invoke('map-detector-stop');
             }
+        });
+        async function restartDetectionIfRunning() {
+            const running = await ipcRenderer.invoke('map-detector-status');
+            if (running) {
+                await ipcRenderer.invoke('map-detector-stop');
+                await ipcRenderer.invoke('map-detector-start');
+            }
+        }
+
+        $("#ocrLanguageSelect").on("input", async function (ev) {
+            await settings.set("ocrLanguage", $(this).val());
+            await restartDetectionIfRunning();
+        });
+        $("#preferredCreatorSelect").on("input", async function (ev) {
+            await settings.set("preferredCreator", $(this).val());
+            await restartDetectionIfRunning();
         });
         $("#sizeRange").on("input", async function (ev) {
             var input = $(this);
@@ -140,6 +162,13 @@ class Options {
         }
     }
 
+    populatePreferredCreators(creators) {
+        const select = $("#preferredCreatorSelect");
+        const current = select.val();
+        select.empty().append(`<option value="">Any Creator</option>`);
+        creators.forEach(c => select.append(`<option value="${c}">${c}</option>`));
+        select.val(current || this.settings.get("preferredCreator") || '');
+    }
 }
 
 module.exports = Options;

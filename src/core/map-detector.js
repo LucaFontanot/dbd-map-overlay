@@ -170,7 +170,18 @@ class MapDetector {
         ipcMain.handle('map-detector-reload-realms', () => this._loadRealmKeys());
     }
 
-    /** Creates two tesseract.js workers (one per script group) in parallel */
+    /**
+     * Returns the lang group strings to use based on the ocrLanguage setting.
+     * 'all' → both groups; specific lang → single-language worker in the right group.
+     */
+    _resolveOcrGroups() {
+        const lang = (this.settings.get('ocrLanguage') || 'all').trim();
+        if (lang === 'all') return LANG_GROUPS;
+        const groupIndex = LANG_GROUPS.findIndex(g => g.split('+').includes(lang));
+        return [groupIndex !== -1 ? lang : lang]; // single worker, single language
+    }
+
+    /** Creates tesseract.js workers (one per script group, or one if a specific language is set) */
     async _createWorkers() {
         const cachePath = path.join(app.getPath('userData'), 'tessdata');
         fs.mkdirSync(cachePath, { recursive: true });
@@ -180,14 +191,15 @@ class MapDetector {
         const workerPath = path.join(path.dirname(require.resolve('tesseract.js/package.json')), 'src', 'worker-script', 'node', 'index.js');
         const corePath   = path.join(path.dirname(require.resolve('tesseract.js-core/package.json')), 'tesseract-core-simd-lstm.wasm.js');
 
+        const groups = this._resolveOcrGroups();
         console.log(`MapDetector: workerPath: ${workerPath}`);
         console.log(`MapDetector: corePath:   ${corePath}`);
-        console.log(`MapDetector: creating ${LANG_GROUPS.length} OCR worker(s), tessdata cache: ${cachePath}`);
-        LANG_GROUPS.forEach((langs, i) => console.log(`MapDetector: worker[${i}] langs: ${langs}`));
+        console.log(`MapDetector: creating ${groups.length} OCR worker(s), tessdata cache: ${cachePath}`);
+        groups.forEach((langs, i) => console.log(`MapDetector: worker[${i}] langs: ${langs}`));
 
         // OEM 1 = LSTM-only (fastest accurate model)
         this.workers = await Promise.all(
-            LANG_GROUPS.map(langs => createWorker(langs, 1, { cachePath, workerPath, corePath }))
+            groups.map(langs => createWorker(langs, 1, { cachePath, workerPath, corePath }))
         );
         console.log('MapDetector: all OCR workers ready');
     }
@@ -429,7 +441,7 @@ class MapDetector {
     /**
      * Stops the detection loop and releases tesseract workers.
      */
-    stop() {
+    async stop() {
         if (!this.running) return;
         this.running = false;
         console.log('MapDetector: stopping');
@@ -439,7 +451,7 @@ class MapDetector {
         this.lastDetected = null;
         this.lastCropBuffer = null;
 
-        this._destroyWorkers();
+        await this._destroyWorkers();
     }
 }
 

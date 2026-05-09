@@ -153,6 +153,10 @@
                             <button class="nav-link" id="steam-deck-tab" data-bs-toggle="tab" data-bs-target="#settings-stream-deck"
                                     type="button" role="tab">Stream Deck</button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="detection-tab" data-bs-toggle="tab" data-bs-target="#settings-detection"
+                                    type="button" role="tab">Detection</button>
+                        </li>
                     </ul>
 
                     <div class="tab-content pt-3" id="settingsTabContent">
@@ -272,6 +276,33 @@
                                     </a> for integration with other setups.
                                 </p>
                             </div>
+                        </div>
+                        <!-- Detection Tab -->
+                        <div class="tab-pane fade" id="settings-detection" role="tabpanel">
+                            <label for="ocrLanguageSelect" class="form-label">OCR Language</label>
+                            <select class="form-select mb-1" id="ocrLanguageSelect">
+                                <option value="all">All Languages (default)</option>
+                                <option value="eng">English</option>
+                                <option value="deu">German</option>
+                                <option value="fra">French</option>
+                                <option value="spa">Spanish</option>
+                                <option value="ita">Italian</option>
+                                <option value="por">Portuguese</option>
+                                <option value="rus">Russian</option>
+                                <option value="pol">Polish</option>
+                                <option value="tur">Turkish</option>
+                                <option value="jpn">Japanese</option>
+                                <option value="kor">Korean</option>
+                                <option value="chi_sim">Chinese Simplified</option>
+                                <option value="chi_tra">Chinese Traditional</option>
+                                <option value="tha">Thai</option>
+                            </select>
+                            <small class="text-muted d-block mb-3">Limiting to your game language speeds up detection</small>
+                            <label for="preferredCreatorSelect" class="form-label">Preferred Map Creator</label>
+                            <select class="form-select mb-1" id="preferredCreatorSelect">
+                                <option value="">Any Creator</option>
+                            </select>
+                            <small class="text-muted d-block">When auto-detecting, maps from this creator are preferred</small>
                         </div>
                     </div>
                 </div>
