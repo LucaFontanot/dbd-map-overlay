@@ -311,7 +311,7 @@ class MapDetector {
             const workerLines = (data.lines ?? []).length > 0
                 ? data.lines.map(l => l.text.trim())
                 : (data.text ?? '').split('\n').map(t => t.trim());
-            const kept = workerLines.filter(t => t.length > 1);
+            const kept = workerLines.filter(t => t.length > 3);
             console.log(`MapDetector: worker[${i}] raw lines: ${workerLines.length}, kept: ${kept.length}${kept.length ? ' → ' + kept.join(' | ') : ''}`);
             for (const line of kept) {
                 const key = line.toLowerCase().trim();
@@ -393,9 +393,11 @@ class MapDetector {
             const fuzzy = this._fuzzyMatchRealmKey(raw);
             if (fuzzy) return this.reverseI18n.get(fuzzy) ?? fuzzy;
 
-            // Broad fuzzy over all map/realm names — catches OCR typos like "fazbeare"→"fazbears"
-            const fuzzyI18n = this._fuzzyMatchI18n(normRaw.length > 2 ? normRaw : raw);
-            if (fuzzyI18n) return fuzzyI18n;
+            // Broad fuzzy over all map/realm names — require ≥6 chars to avoid short garbage matching
+            if (raw.length >= 6) {
+                const fuzzyI18n = this._fuzzyMatchI18n(normRaw.length > 2 ? normRaw : raw);
+                if (fuzzyI18n) return fuzzyI18n;
+            }
         }
 
         return null;
