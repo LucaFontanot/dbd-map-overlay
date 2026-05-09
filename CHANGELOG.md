@@ -2,6 +2,7 @@
 - Added automatic map detection with tesseract OCR
 - Added option to choose the language for OCR
 - Added localizations for all maps in all languages
+- Fixed overlay not working on some windows versions
 
 ## 1.5.4
 - Fixed a bug that caused the overlay to not place in the correct position

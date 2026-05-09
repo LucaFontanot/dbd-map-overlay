@@ -43,10 +43,24 @@ class OverlayWindow {
             }
         })
         this.window.loadFile('src/map/map.html')
-        this.window.setAlwaysOnTop(true, 'screen-saver');
+        // On Windows, 'screen-saver' level is not supported and gets silently ignored.
+        // Use 'pop-up-menu' on Windows which correctly maps to HWND_TOPMOST and stays
+        // above fullscreen game windows. On other platforms keep 'screen-saver'.
+        const alwaysOnTopLevel = process.platform === 'win32' ? 'pop-up-menu' : 'screen-saver';
+        this.window.setAlwaysOnTop(true, alwaysOnTopLevel);
         this.window.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
         this.window.setSkipTaskbar(true);
         this.window.setIgnoreMouseEvents(true, { forward: true });
+
+        // On Windows, periodically re-assert always-on-top to prevent the game
+        // or other HWND_TOPMOST windows from pushing the overlay behind them.
+        if (process.platform === 'win32') {
+            this._alwaysOnTopInterval = setInterval(() => {
+                if (this.window && !this.window.isDestroyed()) {
+                    this.window.setAlwaysOnTop(true, 'pop-up-menu');
+                }
+            }, 1000);
+        }
 
         this.window.on('moved', () => {
             console.log("Window moved");
@@ -91,6 +105,10 @@ class OverlayWindow {
     }
 
     close() {
+        if (this._alwaysOnTopInterval) {
+            clearInterval(this._alwaysOnTopInterval);
+            this._alwaysOnTopInterval = null;
+        }
         if (this.window) {
             if (!this.window.isDestroyed()) this.window.close();
             this.window = null;
