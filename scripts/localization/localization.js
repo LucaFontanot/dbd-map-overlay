@@ -207,8 +207,7 @@ function scanMaps() {
       if (!fs.statSync(realmDir).isDirectory()) continue;
 
       for (const file of fs.readdirSync(realmDir)) {
-        if (!file.endsWith('.png')) continue;
-        entries.push({ creator, realm, mapName: path.basename(file, '.png') });
+        entries.push({ creator, realm, mapName: path.basename(file, path.extname(file)) });
       }
     }
   }
