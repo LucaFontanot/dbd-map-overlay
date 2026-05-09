@@ -85,6 +85,9 @@ class MapDetector {
         /** Last matched "realm/map" key — suppresses duplicate events */
         this.lastDetected = null;
 
+        /** Raw PNG of the last crop — skips preprocess+OCR when screen is unchanged */
+        this.lastCropBuffer = null;
+
         this._loadI18n();
         this._setupIPC();
     }
@@ -201,7 +204,7 @@ class MapDetector {
     async _captureDBD() {
         const sources = await desktopCapturer.getSources({
             types: ['window'],
-            thumbnailSize: { width: 1920, height: 1080 },
+            thumbnailSize: { width: 960, height: 540 },
         });
         console.log(`MapDetector: found ${sources.length} window source(s): ${sources.map(s => s.name).join(', ')}`);
         const source = sources.find(s => {
@@ -250,8 +253,7 @@ class MapDetector {
      * @param {Buffer} pngBuffer
      * @returns {Promise<Buffer>}
      */
-    async _preprocessImage(pngBuffer) {
-        const { width, height } = await sharp(pngBuffer).metadata();
+    async _preprocessImage(pngBuffer, width, height) {
         return sharp(pngBuffer)
             .resize(width * 2, height * 2, { kernel: sharp.kernel.lanczos3 })
             .greyscale()
@@ -263,8 +265,9 @@ class MapDetector {
     }
 
     /**
-     * Runs OCR using both worker groups in parallel and merges the
-     * resulting text lines.
+     * Runs OCR using worker groups sequentially with early exit:
+     * Group A (Latin+Cyrillic) runs first; Group B (CJK+Thai) only runs
+     * if Group A yields no lines — skips the expensive CJK pass for most users.
      *
      * @param {Buffer} imageBuffer  PNG buffer from NativeImage.toPNG()
      * @returns {Promise<string[]>}  Non-empty text lines from all passes
@@ -272,18 +275,17 @@ class MapDetector {
     async _ocr(imageBuffer) {
         console.log(`MapDetector: running OCR on ${imageBuffer.length} byte image with ${this.workers.length} worker(s)`);
         // PSM 11 = sparse text — best for isolated game UI labels on complex backgrounds
-        const results = await Promise.allSettled(
-            this.workers.map(w => w.recognize(imageBuffer, { tessedit_pageseg_mode: '11' }))
-        );
         const seen = new Set();
         const lines = [];
-        for (let i = 0; i < results.length; i++) {
-            const result = results[i];
-            if (result.status !== 'fulfilled') {
-                console.warn(`MapDetector: worker[${i}] OCR failed: ${result.reason}`);
+
+        for (let i = 0; i < this.workers.length; i++) {
+            let data;
+            try {
+                ({ data } = await this.workers[i].recognize(imageBuffer, { tessedit_pageseg_mode: '11' }));
+            } catch (err) {
+                console.warn(`MapDetector: worker[${i}] OCR failed: ${err}`);
                 continue;
             }
-            const data = result.value.data;
             // Prefer structured lines; fall back to splitting the raw text string
             const workerLines = (data.lines ?? []).length > 0
                 ? data.lines.map(l => l.text.trim())
@@ -294,6 +296,7 @@ class MapDetector {
                 const key = line.toLowerCase().trim();
                 if (!seen.has(key)) { seen.add(key); lines.push(line); }
             }
+            if (lines.length > 0) break; // Group A matched — skip Group B
         }
         return lines;
     }
@@ -333,8 +336,19 @@ class MapDetector {
             }
             console.log(`MapDetector: capture took ${new Date().getTime() - time} ms`);
             time = new Date().getTime();
-            const cropped    = this._cropForText(thumbnail);
-            const imgBuffer  = await this._preprocessImage(cropped.toPNG());
+            const cropped          = this._cropForText(thumbnail);
+            const { width, height } = cropped.getSize();
+            const rawPng           = cropped.toPNG();
+
+            if (this.lastCropBuffer?.equals(rawPng)) {
+                console.log('MapDetector: crop unchanged, skipping OCR');
+                return;
+            }
+            this.lastCropBuffer = rawPng;
+
+            const imgBuffer = await this._preprocessImage(rawPng, width, height);
+            console.log(`MapDetector: preprocess took ${new Date().getTime() - time} ms`);
+            time = new Date().getTime();
             const lines      = await this._ocr(imgBuffer);
             console.log(`MapDetector: OCR took ${new Date().getTime() - time} ms`);
             if (lines.length === 0) {
@@ -389,6 +403,7 @@ class MapDetector {
         clearInterval(this.timer);
         this.timer = null;
         this.lastDetected = null;
+        this.lastCropBuffer = null;
 
         this._destroyWorkers();
     }
