@@ -91,6 +91,9 @@ class MapDetector {
         /** Raw PNG of the last crop — skips preprocess+OCR when screen is unchanged */
         this.lastCropBuffer = null;
 
+        /** Prevents concurrent _detect() calls from overlapping */
+        this._detecting = false;
+
         this._loadI18n();
         this._setupIPC();
     }
@@ -446,10 +449,22 @@ class MapDetector {
 
     /** One detection tick: capture → crop → OCR → match → emit */
     async _detect() {
+        // Guard: do not start a new tick if the detector was stopped or one is already running
+        if (!this.running) return;
+        if (this._detecting) {
+            console.log('MapDetector: detection already in progress, skipping tick');
+            return;
+        }
+        this._detecting = true;
         console.log('MapDetector: --- detection tick start ---');
         try {
             let time = new Date().getTime();
             const thumbnail = await this._captureDBD();
+
+            // Re-check after every async suspension so that a stop() call in the meantime
+            // prevents the rest of the pipeline from firing show-map-command.
+            if (!this.running) return;
+
             if (!thumbnail || thumbnail.isEmpty()) {
                 console.log('MapDetector: no DBD thumbnail, skipping tick');
                 return;
@@ -467,9 +482,13 @@ class MapDetector {
             this.lastCropBuffer = rawPng;
 
             const imgBuffer = await this._preprocessImage(rawPng, width, height);
+            if (!this.running) return;
+
             console.log(`MapDetector: preprocess took ${new Date().getTime() - time} ms`);
             time = new Date().getTime();
             const lines      = await this._ocr(imgBuffer);
+            if (!this.running) return;
+
             console.log(`MapDetector: OCR took ${new Date().getTime() - time} ms`);
             if (lines.length === 0) {
                 console.log('MapDetector: OCR returned no lines, skipping tick');
@@ -492,6 +511,8 @@ class MapDetector {
             this.mainWindow.send('show-map-command', detectionKey.replace(/'/g, '').trim());
         } catch (err) {
             console.error('MapDetector::_detect:', err.message);
+        } finally {
+            this._detecting = false;
         }
     }
 
@@ -524,6 +545,7 @@ class MapDetector {
         this.timer = null;
         this.lastDetected = null;
         this.lastCropBuffer = null;
+        this._detecting = false;
 
         await this._destroyWorkers();
     }
