@@ -65,7 +65,9 @@
     "image-size": "^2.0.2",
     "jquery": "^4.0.0",
     "marked": "^17.0.2",
+    "node-addon-api": "^8.8.0",
     "popper.js": "^1.16.1",
+    "screenshot-desktop": "^1.15.4",
     "sharp": "^0.34.5",
     "tesseract.js": "^7.0.0",
     "uuid": "^13.0.0"

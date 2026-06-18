@@ -20,11 +20,12 @@
  *   map-detector-reload-realms  → re-scans photo dir for new realm names
  */
 
-const { desktopCapturer, ipcMain, app } = require('electron');
+const { ipcMain, app } = require('electron');
 const { createWorker } = require('tesseract.js');
 const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
+const screenshot = require('screenshot-desktop');
 
 // ─── Language groups by writing system ───────────────────────────────────────
 // Covering all 15 localisation files bundled in src/i18n/
@@ -74,7 +75,7 @@ class MapDetector {
         this.workers = [];
         this.timer = null;
         this.running = false;
-        this.intervalMs = 3500;
+        this.intervalMs = 1000;
 
         /** Maps every localised string (lowercase) to its English key */
         this.reverseI18n = new Map();
@@ -225,22 +226,19 @@ class MapDetector {
      * @returns {Electron.NativeImage | null}
      */
     async _captureDBD() {
-        const sources = await desktopCapturer.getSources({
-            types: ['window'],
-            thumbnailSize: { width: 960, height: 540 },
-        });
-        console.log(`MapDetector: found ${sources.length} window source(s): ${sources.map(s => s.name).join(', ')}`);
-        const source = sources.find(s => {
-            const name = s.name.toLowerCase();
-            return name.includes('deadbydaylight') || name.includes('dead by daylight');
-        });
-        if (!source) {
-            console.log('MapDetector: DBD window not found');
-        } else {
-            const size = source.thumbnail.getSize();
-            console.log(`MapDetector: captured DBD window "${source.name}" (${size.width}x${size.height})`);
+        try {
+            const imgBuffer = await screenshot({ format: 'png' });
+
+            if (!imgBuffer || imgBuffer.length === 0) {
+                console.log('MapDetector: empty screenshot');
+                return null;
+            }
+
+            return imgBuffer;
+        } catch (err) {
+            console.error('MapDetector: screenshot failed', err);
+            return null;
         }
-        return source ? source.thumbnail : null;
     }
 
     /**
@@ -270,7 +268,7 @@ class MapDetector {
      *   1. 2× upscale  — improves OCR accuracy on small text
      *   2. Greyscale   — removes colour noise
      *   3. Normalise   — stretches contrast across full range
-     *   4. Negate      — turns white-on-dark into black-on-white (Tesseract default)
+     *   4. Blur        — smooth anti-aliased edges before binarisation — prevents single-word splits
      *   5. Threshold   — hard binarise, drops background gradients
      *
      * @param {Buffer} pngBuffer
@@ -281,8 +279,7 @@ class MapDetector {
             .resize(width * 2, height * 2, { kernel: sharp.kernel.lanczos3 })
             .greyscale()
             .normalize()
-            .negate()
-            .blur(0.5)   // smooth anti-aliased edges before binarisation — prevents single-word splits
+            .blur(0.5)
             .threshold(128)
             .png()
             .toBuffer();
@@ -465,23 +462,44 @@ class MapDetector {
             // prevents the rest of the pipeline from firing show-map-command.
             if (!this.running) return;
 
-            if (!thumbnail || thumbnail.isEmpty()) {
+            if (!thumbnail || thumbnail.length === 0) {
                 console.log('MapDetector: no DBD thumbnail, skipping tick');
                 return;
             }
+
+            await require('sharp')(thumbnail).toFile('debug_original.png');
+            
             console.log(`MapDetector: capture took ${new Date().getTime() - time} ms`);
             time = new Date().getTime();
-            const cropped          = this._cropForText(thumbnail);
-            const { width, height } = cropped.getSize();
-            const rawPng           = cropped.toPNG();
 
-            if (this.lastCropBuffer?.equals(rawPng)) {
-                console.log('MapDetector: crop unchanged, skipping OCR');
-                return;
-            }
-            this.lastCropBuffer = rawPng;
+            const image = sharp(thumbnail);
+            
+            const meta = await image.metadata();
 
-            const imgBuffer = await this._preprocessImage(rawPng, width, height);
+            const crop = {
+                left: 0,
+                top: Math.floor(meta.height * 0.80),
+                width: Math.floor(meta.width * 0.80),
+                height: Math.floor(meta.height * 0.10),
+            };
+
+            const cropped = await image.extract(crop).png().toBuffer();
+
+            await sharp(cropped).toFile('debug_crop.png');
+
+            if (this.lastCropBuffer?.equals(cropped)) return;
+            this.lastCropBuffer = cropped;
+
+            const croppedMeta = await sharp(cropped).metadata();
+
+            const imgBuffer = await this._preprocessImage(
+                cropped,
+                croppedMeta.width,
+                croppedMeta.height
+            );
+
+            await sharp(imgBuffer).toFile('debug_preprocessed.png');
+
             if (!this.running) return;
 
             console.log(`MapDetector: preprocess took ${new Date().getTime() - time} ms`);
@@ -530,8 +548,16 @@ class MapDetector {
         await this._createWorkers();
 
         this._detect(); // immediate first scan
-        this.timer = setInterval(() => this._detect(), this.intervalMs);
+        this.running = true;
+        this._loop();
     }
+
+    async _loop() {
+    while (this.running) {
+        await this._detect();
+        await new Promise(r => setTimeout(r, this.intervalMs));
+    }
+}
 
     /**
      * Stops the detection loop and releases tesseract workers.
