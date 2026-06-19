@@ -583,17 +583,16 @@ class MapDetector {
     }
 
     async _loop() {
-    try {
-        while (this.running) {
-            await this._detect();
-            await new Promise(r => setTimeout(r, this.intervalMs));
+        try {
+            while (this.running) {
+                await this._detect();
+                await new Promise(r => setTimeout(r, this.intervalMs));
+            }
+        } catch (err) {
+            console.error('MapDetector loop crashed:', err);
+            this.running = false;
         }
-    } catch (err) {
-        console.error('MapDetector loop crashed:', err);
-        this.running = false;
     }
-}
-}
 
     /**
      * Stops the detection loop and releases tesseract workers.
