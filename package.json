@@ -67,7 +67,6 @@
     "marked": "^17.0.2",
     "node-screenshots": "^0.2.8",
     "popper.js": "^1.16.1",
-    "screenshot-desktop": "^1.15.4",
     "sharp": "^0.34.5",
     "tesseract.js": "^7.0.0",
     "uuid": "^13.0.0"

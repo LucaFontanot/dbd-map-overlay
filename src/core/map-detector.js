@@ -76,7 +76,6 @@ class MapDetector {
         this.timer = null;
         this.running = false;
         this.intervalMs = 1000;
-        this.intervalMs = 1000;
 
         /** Maps every localised string (lowercase) to its English key */
         this.reverseI18n = new Map();
@@ -95,10 +94,6 @@ class MapDetector {
 
         /** Prevents concurrent _detect() calls from overlapping */
         this._detecting = false;
-
-        /** Stores the DBD window Id so it does not need to check every tick */
-        this.cachedDBDWindow = null;
-        this.lastWindowRefresh = 0;
 
         this._loadI18n();
         this._setupIPC();
@@ -293,7 +288,6 @@ class MapDetector {
             .greyscale()
             .normalize()
             .blur(0.5)
-            .blur(0.5)
             .threshold(128)
             .png()
             .toBuffer();
@@ -460,6 +454,7 @@ class MapDetector {
 
     /** One detection tick: capture → crop → OCR → match → emit */
     async _detect() {
+        // Guard: do not start a new tick if the detector was stopped or one is already running
         if (!this.running) return;
         
         if (this._detecting) {
@@ -475,6 +470,10 @@ class MapDetector {
 
             // capture
             const thumbnail = await this._captureDBD();
+
+            // Re-check after every async suspension so that a stop() call in the meantime
+            // prevents the rest of the pipeline from firing show-map-command.
+            if (!this.running) return;
 
             if (!thumbnail || thumbnail.length === 0) {
                 console.log('MapDetector: empty capture, skipping tick');
@@ -511,6 +510,7 @@ class MapDetector {
             }
 
             this.lastCropBuffer = croppedBuffer;
+            
 
             console.log(`MapDetector: crop + extract took ${Date.now() - time} ms`);
             time = Date.now();
@@ -523,6 +523,7 @@ class MapDetector {
                 Math.floor(width * 0.45),
                 Math.floor(height * 0.30)
             );
+            if (!this.running) return;
 
             console.log(`MapDetector: preprocess took ${Date.now() - time} ms`);
             time = Date.now();
@@ -531,6 +532,7 @@ class MapDetector {
 
             // ocr
             const lines = await this._ocr(imgBuffer);
+            if (!this.running) return;
 
             console.log(`MapDetector: OCR took ${Date.now() - time} ms`);
 
@@ -576,19 +578,21 @@ class MapDetector {
         if (this.running) return;
         this.running = true;
         console.log('MapDetector: starting');
-
         await this._createWorkers();
-
-        this._detect(); // immediate first scan
-        this.running = true;
         this._loop();
     }
 
     async _loop() {
-    while (this.running) {
-        await this._detect();
-        await new Promise(r => setTimeout(r, this.intervalMs));
+    try {
+        while (this.running) {
+            await this._detect();
+            await new Promise(r => setTimeout(r, this.intervalMs));
+        }
+    } catch (err) {
+        console.error('MapDetector loop crashed:', err);
+        this.running = false;
     }
+}
 }
 
     /**
