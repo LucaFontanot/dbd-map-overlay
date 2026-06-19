@@ -76,6 +76,7 @@ class MapDetector {
         this.timer = null;
         this.running = false;
         this.intervalMs = 1000;
+        this.intervalMs = 1000;
 
         /** Maps every localised string (lowercase) to its English key */
         this.reverseI18n = new Map();
@@ -232,7 +233,6 @@ class MapDetector {
     async _captureDBD() {
         const start = performance.now();
 
-        // Always use primary monitor
         const monitors = Monitor.all();
         const monitorIndex = parseInt(this.settings.get('monitor')) || 0;
         const monitor = monitors[monitorIndex];
@@ -292,6 +292,7 @@ class MapDetector {
             .resize(width * 2, height * 2, { kernel: sharp.kernel.lanczos3 })
             .greyscale()
             .normalize()
+            .blur(0.5)
             .blur(0.5)
             .threshold(128)
             .png()
@@ -579,8 +580,16 @@ class MapDetector {
         await this._createWorkers();
 
         this._detect(); // immediate first scan
-        this.timer = setInterval(() => this._detect(), this.intervalMs);
+        this.running = true;
+        this._loop();
     }
+
+    async _loop() {
+    while (this.running) {
+        await this._detect();
+        await new Promise(r => setTimeout(r, this.intervalMs));
+    }
+}
 
     /**
      * Stops the detection loop and releases tesseract workers.
