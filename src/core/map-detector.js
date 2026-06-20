@@ -228,21 +228,38 @@ class MapDetector {
     async _captureDBD() {
         const start = performance.now();
 
-        const monitors = Monitor.all();
-        const monitorIndex = parseInt(this.settings.get('monitor')) || 0;
-        const monitor = monitors[monitorIndex];
+        const windows = Window.all();
 
-        if (!monitor) {
-            console.log('MapDetector: no monitor found');
+        console.log(
+            `MapDetector: found ${windows.length} window(s): ${
+                windows.map(w => w.title?.() || '[unknown]').join(', ')
+            }`
+        );
+
+        const window = windows.find(w => {
+            const title = (w.title?.() || '').toLowerCase();
+
+            return (
+                title.includes('deadbydaylight') ||
+                title.includes('dead by daylight')
+            );
+        });
+
+        
+        if (!window) {
+            console.log('MapDetector: DBD window not found');
             return null;
         }
 
-        // Capture full screen (fast native DXGI/XCap path)
-        const image = await monitor.captureImage();
+        console.log(
+            `MapDetector: capturing DBD window "${window.title?.()}" (${window.width()}x${window.height()})`
+        );
 
+
+        const image = await window.captureImage();
         const buffer = await image.toPng();
 
-        console.log(`MapDetector: monitor capture took ${performance.now() - start} ms`);
+        console.log(`MapDetector: window capture took ${performance.now() - start} ms`);
         
         await sharp(buffer).toFile('debug_raw.png');
 
