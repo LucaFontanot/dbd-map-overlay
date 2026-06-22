@@ -1,3 +1,10 @@
+## 1.6.2
+- Reworked the detection system thanks to @Complexifyed
+- Map localization and names updated thanks to @Complexifyed
+
+## 1.6.1
+- Fixed race condition that caused the auto detector to not turn off sometimes.
+
 ## 1.6.0
 - Added automatic map detection with tesseract OCR
 - Added option to choose the language for OCR

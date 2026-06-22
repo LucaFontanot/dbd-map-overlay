@@ -5,6 +5,7 @@
 
 ### Contributors  
 - <p><a href="https://github.com/Juli0q" target="_blank">Juli0q</a></p>
+- <p><a href="https://github.com/Complexifyed/" target="_blank">Complexifyed</a></p>
 
 ---
 
