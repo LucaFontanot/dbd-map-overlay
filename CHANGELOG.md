@@ -1,6 +1,7 @@
 ## 1.6.2
 - Reworked the detection system thanks to @Complexifyed
 - Map localization and names updated thanks to @Complexifyed
+- Added DbD league maps (partial)
 
 ## 1.6.1
 - Fixed race condition that caused the auto detector to not turn off sometimes.

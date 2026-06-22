@@ -1,17 +1,18 @@
 {
   "name": "dbd-map",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "Overlay for DBD maps",
   "main": "index.js",
   "author": "Luca <admin@lucaservers.com>",
   "scripts": {
     "start": "electron index.js",
-    "build": "electron-builder -wl",
-    "build:win": "electron-builder -w",
-    "build:linux": "electron-builder -l",
-    "publish": "electron-builder -wl --publish always",
-    "publish:win": "electron-builder -w --publish always",
-    "publish:linux": "electron-builder -l --publish always"
+    "prebuild": "bash scripts/prebuild.sh",
+    "build": "npm run prebuild && electron-builder -wl",
+    "build:win": "npm run prebuild && electron-builder -w",
+    "build:linux": "npm run prebuild && electron-builder -l",
+    "publish": "npm run prebuild && electron-builder -wl --publish always",
+    "publish:win": "npm run prebuild && electron-builder -w --publish always",
+    "publish:linux": "npm run prebuild && electron-builder -l --publish always"
   },
   "keywords": [],
   "license": "ISC",
@@ -37,6 +38,7 @@
       "!scripts/*",
       "!dist/*",
       "!maps/*",
+      "!.idea/*",
       "!.github/*",
       "!.vscode/*",
       "!.yarn/*"
@@ -45,7 +47,9 @@
       "node_modules/tesseract.js/**",
       "node_modules/tesseract.js-core/**",
       "node_modules/sharp/**",
-      "node_modules/@img/**"
+      "node_modules/@img/**",
+      "node_modules/node-screenshots/**/*.node",
+      "node_modules/node-screenshots-*/**/*.node"
     ],
     "nsis": {
       "oneClick": false,
