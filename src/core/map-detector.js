@@ -20,11 +20,12 @@
  *   map-detector-reload-realms  → re-scans photo dir for new realm names
  */
 
-const { desktopCapturer, ipcMain, app } = require('electron');
+const { desktopCapturer, ipcMain, app, screen } = require('electron');
 const { createWorker } = require('tesseract.js');
 const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
+const { Window, Monitor } = require('node-screenshots');
 
 // ─── Language groups by writing system ───────────────────────────────────────
 // Covering all 15 localisation files bundled in src/i18n/
@@ -74,7 +75,7 @@ class MapDetector {
         this.workers = [];
         this.timer = null;
         this.running = false;
-        this.intervalMs = 3500;
+        this.intervalMs = 1000;
 
         /** Maps every localised string (lowercase) to its English key */
         this.reverseI18n = new Map();
@@ -225,22 +226,44 @@ class MapDetector {
      * @returns {Electron.NativeImage | null}
      */
     async _captureDBD() {
-        const sources = await desktopCapturer.getSources({
-            types: ['window'],
-            thumbnailSize: { width: 960, height: 540 },
+        const start = performance.now();
+
+        const windows = Window.all();
+
+        console.log(
+            `MapDetector: found ${windows.length} window(s): ${
+                windows.map(w => w.title?.() || '[unknown]').join(', ')
+            }`
+        );
+
+        const window = windows.find(w => {
+            const title = (w.title?.() || '').toLowerCase();
+
+            return (
+                title.includes('deadbydaylight') ||
+                title.includes('dead by daylight')
+            );
         });
-        console.log(`MapDetector: found ${sources.length} window source(s): ${sources.map(s => s.name).join(', ')}`);
-        const source = sources.find(s => {
-            const name = s.name.toLowerCase();
-            return name.includes('deadbydaylight') || name.includes('dead by daylight');
-        });
-        if (!source) {
+
+        
+        if (!window) {
             console.log('MapDetector: DBD window not found');
-        } else {
-            const size = source.thumbnail.getSize();
-            console.log(`MapDetector: captured DBD window "${source.name}" (${size.width}x${size.height})`);
+            return null;
         }
-        return source ? source.thumbnail : null;
+
+        console.log(
+            `MapDetector: capturing DBD window "${window.title?.()}" (${window.width()}x${window.height()})`
+        );
+
+
+        const image = await window.captureImage();
+        const buffer = await image.toPng();
+
+        console.log(`MapDetector: window capture took ${performance.now() - start} ms`);
+        
+        await sharp(buffer).toFile('debug_raw.png');
+
+        return buffer;
     }
 
     /**
@@ -270,7 +293,7 @@ class MapDetector {
      *   1. 2× upscale  — improves OCR accuracy on small text
      *   2. Greyscale   — removes colour noise
      *   3. Normalise   — stretches contrast across full range
-     *   4. Negate      — turns white-on-dark into black-on-white (Tesseract default)
+     *   4. Blur      — smooth anti-aliased edges before binarisation — prevents single-word splits
      *   5. Threshold   — hard binarise, drops background gradients
      *
      * @param {Buffer} pngBuffer
@@ -281,8 +304,7 @@ class MapDetector {
             .resize(width * 2, height * 2, { kernel: sharp.kernel.lanczos3 })
             .greyscale()
             .normalize()
-            .negate()
-            .blur(0.5)   // smooth anti-aliased edges before binarisation — prevents single-word splits
+            .blur(0.5)
             .threshold(128)
             .png()
             .toBuffer();
@@ -451,46 +473,87 @@ class MapDetector {
     async _detect() {
         // Guard: do not start a new tick if the detector was stopped or one is already running
         if (!this.running) return;
+        
         if (this._detecting) {
             console.log('MapDetector: detection already in progress, skipping tick');
             return;
         }
+
         this._detecting = true;
         console.log('MapDetector: --- detection tick start ---');
+
         try {
-            let time = new Date().getTime();
+            let time = Date.now();
+
+            // capture
             const thumbnail = await this._captureDBD();
 
             // Re-check after every async suspension so that a stop() call in the meantime
             // prevents the rest of the pipeline from firing show-map-command.
             if (!this.running) return;
 
-            if (!thumbnail || thumbnail.isEmpty()) {
-                console.log('MapDetector: no DBD thumbnail, skipping tick');
+            if (!thumbnail || thumbnail.length === 0) {
+                console.log('MapDetector: empty capture, skipping tick');
                 return;
             }
-            console.log(`MapDetector: capture took ${new Date().getTime() - time} ms`);
-            time = new Date().getTime();
-            const cropped          = this._cropForText(thumbnail);
-            const { width, height } = cropped.getSize();
-            const rawPng           = cropped.toPNG();
 
-            if (this.lastCropBuffer?.equals(rawPng)) {
+            console.log(`MapDetector: capture took ${Date.now() - time} ms`);
+            time = Date.now();
+
+            // get dimensions for cropping
+            const meta = await sharp(thumbnail).metadata();
+            const width = meta.width;
+            const height = meta.height;
+
+            if (!width || !height) {
+                console.log('MapDetector: invalid image metadata');
+                return;
+            }
+
+            // crop region
+            const croppedBuffer = await sharp(thumbnail)
+                .extract({
+                    left: 0,
+                    top: Math.floor(height * 0.65),
+                    width: Math.floor(width * 0.45),
+                    height: Math.floor(height * 0.30),
+                })
+                .png()
+                .toBuffer();
+
+            if (this.lastCropBuffer?.equals(croppedBuffer)) {
                 console.log('MapDetector: crop unchanged, skipping OCR');
                 return;
             }
-            this.lastCropBuffer = rawPng;
 
-            const imgBuffer = await this._preprocessImage(rawPng, width, height);
+            this.lastCropBuffer = croppedBuffer;
+            
+
+            console.log(`MapDetector: crop + extract took ${Date.now() - time} ms`);
+            time = Date.now();
+
+            await sharp(croppedBuffer).toFile('debug_crop.png');
+
+            // preprocess
+            const imgBuffer = await this._preprocessImage(
+                croppedBuffer,
+                Math.floor(width * 0.45),
+                Math.floor(height * 0.30)
+            );
             if (!this.running) return;
 
-            console.log(`MapDetector: preprocess took ${new Date().getTime() - time} ms`);
-            time = new Date().getTime();
-            const lines      = await this._ocr(imgBuffer);
+            console.log(`MapDetector: preprocess took ${Date.now() - time} ms`);
+            time = Date.now();
+
+            await sharp(imgBuffer).toFile('debug_preprocessed.png');
+
+            // ocr
+            const lines = await this._ocr(imgBuffer);
             if (!this.running) return;
 
-            console.log(`MapDetector: OCR took ${new Date().getTime() - time} ms`);
-            if (lines.length === 0) {
+            console.log(`MapDetector: OCR took ${Date.now() - time} ms`);
+
+            if (!lines.length) {
                 console.log('MapDetector: OCR returned no lines, skipping tick');
                 return;
             }
@@ -498,19 +561,25 @@ class MapDetector {
             const match = this._matchLines(lines);
             if (!match) return;
 
-            // "realm/map" gives findClosestMapMatch() in images.js enough
-            // specificity to locate the correct file without ambiguity.
-            const detectionKey = match.realm ? `${match.realm}/${match.map}` : match.map;
+            const detectionKey = match.realm
+                ? `${match.realm}/${match.map}`
+                : match.map;
+
             if (detectionKey === this.lastDetected) {
                 console.log(`MapDetector: duplicate detection "${detectionKey}", suppressed`);
                 return;
             }
+
             this.lastDetected = detectionKey;
 
             console.log(`MapDetector: matched → ${detectionKey}`);
-            this.mainWindow.send('show-map-command', detectionKey.replace(/'/g, '').trim());
+            this.mainWindow.send(
+                'show-map-command',
+                detectionKey.replace(/'/g, '').trim()
+            );
+
         } catch (err) {
-            console.error('MapDetector::_detect:', err.message);
+            console.error('MapDetector::_detect:', err);
         } finally {
             this._detecting = false;
         }
@@ -526,11 +595,20 @@ class MapDetector {
         if (this.running) return;
         this.running = true;
         console.log('MapDetector: starting');
-
         await this._createWorkers();
+        this._loop();
+    }
 
-        this._detect(); // immediate first scan
-        this.timer = setInterval(() => this._detect(), this.intervalMs);
+    async _loop() {
+        try {
+            while (this.running) {
+                await this._detect();
+                await new Promise(r => setTimeout(r, this.intervalMs));
+            }
+        } catch (err) {
+            console.error('MapDetector loop crashed:', err);
+            this.running = false;
+        }
     }
 
     /**
