@@ -614,6 +614,15 @@ class MapDetector {
      * If already running in continuous mode, stops and switches to oneshot.
      */
     async detectOnce() {
+        // Already running in oneshot mode — just reset state so the next tick
+        // behaves like a fresh detection (no duplicate suppression, no crop skip).
+        if (this.running && this.mode === 'oneshot') {
+            console.log('MapDetector: oneshot already running, resetting state');
+            this.lastDetected = null;
+            this.lastCropBuffer = null;
+            return;
+        }
+
         if (this.running) {
             console.log('MapDetector: stopping continuous mode, switching to oneshot');
             await this.stop();
