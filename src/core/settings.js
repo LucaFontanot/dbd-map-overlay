@@ -19,7 +19,11 @@ const defaultConfig = {
     overlayY: null,
     mapDetection: false,
     ocrLanguage: 'all',
-    preferredCreator: ''
+    preferredCreator: '',
+    hotkeyCheckLobby: 'CommandOrControl+P',
+    hotkeyToggleMap: 'CommandOrControl+H',
+    hotkeyRotateMap: 'CommandOrControl+R',
+    hotkeyMapDetection: 'CommandOrControl+Q'
 };
 
 class Settings {

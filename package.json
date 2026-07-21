@@ -1,6 +1,6 @@
 {
   "name": "dbd-map",
-  "version": "1.6.3",
+  "version": "1.6.4",
   "description": "Overlay for DBD maps",
   "main": "index.js",
   "author": "Luca <admin@lucaservers.com>",
@@ -38,6 +38,7 @@
       "!scripts/*",
       "!dist/*",
       "!maps/*",
+      "!.git/*",
       "!.idea/*",
       "!.github/*",
       "!.vscode/*",

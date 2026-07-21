@@ -213,7 +213,21 @@
                                 Add Hotkey
                             </button>
 
-                            <h1 class="modal-title fs-5">Maps</h1>
+                            <h1 class="modal-title fs-5">System</h1>
+                            <table class="table table-bordered">
+                                <thead>
+                                <tr>
+                                    <th>Action</th>
+                                    <th>Binding</th>
+                                    <th></th>
+                                    <th></th>
+                                </tr>
+                                </thead>
+                                <tbody id="systemHotkeyList">
+                                </tbody>
+                            </table>
+
+                            <h1 class="modal-title fs-5 mt-4">Maps</h1>
                             <table class="table table-bordered">
                                 <thead>
                                 <tr>
@@ -227,12 +241,11 @@
                                 </tbody>
                             </table>
 
-                            <div class="alert alert-secondary d-flex flex-column gap-1 py-2 mb-4">
-                                <strong class="fs-6 mb-1">Default hotkeys</strong>
-                                <span><kbd>Cmd / Ctrl + P</kbd> – Reload Map when in a Lobby</span>
-                                <span><kbd>Cmd / Ctrl + H</kbd> – Hide currently open Map</span>
-                                <span><kbd>Cmd / Ctrl + R</kbd> – Rotate Map by 90 degrees</span>
-                                <span><kbd>Cmd / Ctrl + D</kbd> – Trigger auto-detection (OCR scan for current map)</span>
+                            <div id="hotkeyToast" class="toast align-items-center text-white border-0 position-fixed bottom-0 end-0 mb-3 me-3" role="alert" aria-live="assertive" aria-atomic="true">
+                                <div class="d-flex">
+                                    <div class="toast-body" id="hotkeyToastBody"></div>
+                                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                                </div>
                             </div>
                         </div>
 
@@ -324,13 +337,15 @@
                 <div class="modal-body">
                     <label for="hotkeyInput" class="form-label">Press a key combination</label>
                     <input type="text" class="form-control" id="hotkeyInput" placeholder="Press a key..." readonly>
-                    <label for="selectCreator" class="form-label mt-3">Select Creator</label>
-                    <select id="selectCreator" class="form-select mb-3"></select>
+                    <div id="mapCreatorFields">
+                        <label for="selectCreator" class="form-label mt-3">Select Creator</label>
+                        <select id="selectCreator" class="form-select mb-3"></select>
 
-                    <label for="selectMap" class="form-label mt-3">Select Map</label>
-                    <select id="selectMap" class="form-select" autocomplete="off">
-                        <option value="">Select...</option>
-                    </select>
+                        <label for="selectMap" class="form-label mt-3">Select Map</label>
+                        <select id="selectMap" class="form-select" autocomplete="off">
+                            <option value="">Select...</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-primary" id="saveHotkeyBtn" data-bs-dismiss="modal" onclick="this.blur()">Save Hotkey</button>
@@ -425,7 +440,7 @@
                             <button class="btn btn-danger" onclick="leaveLobby()">Leave Lobby</button>
                         </div>
                         <p>The map update check is made every 15 seconds, if you want to force the update just press
-                            CTRL+P or CMD+P, also while in game</p>
+                            <span id="lobbyHotkeyHint">Ctrl + P</span>, also while in game</p>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -477,7 +492,7 @@
                 <div class="col-auto d-flex align-items-center gap-2">
                     <div class="form-check form-switch mb-0">
                         <input class="form-check-input" type="checkbox" id="mapDetectionCheck" role="switch">
-                        <label class="form-check-label text-white" for="mapDetectionCheck">Auto-detect map (press Ctrl+D to trigger)</label>
+                        <label class="form-check-label text-white" for="mapDetectionCheck">Auto-detect map (press <span id="detectionHotkeyHint">Ctrl + Q</span> to trigger)</label>
                     </div>
                     <span class="badge bg-warning text-dark">BETA</span>
                 </div>

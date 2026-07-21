@@ -45,7 +45,7 @@ const images = new Images(api, settings);
  * Hotkeys instance for handling the main view
  * @type {Images}
  */
-const hotkeys = new Hotkeys(images);
+const hotkeys = new Hotkeys(images, settings);
 
 /**
  * Lobby instance for managing the lobby state and interactions.

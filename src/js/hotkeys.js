@@ -1,18 +1,23 @@
-const {debugLog} = require("./logger");
+const { debugLog } = require("./logger");
 const { ipcRenderer } = require('electron');
+const { acceleratorToDisplay, displayToAccelerator, SYSTEM_HOTKEY_DEFS } = require("../shared/hotkeys-constants");
 
 class Hotkeys {
 
-    constructor(images) {
+    constructor(images, settings) {
         debugLog("hotkeys::constructor::called");
         this.images = images;
+        this.settings = settings || null;
         this.recordingHotkey = false;
+        this.editingSystemAction = null; // actionId when editing a system hotkey, null otherwise
         this.hotkeys = {};
+        this.systemHotkeys = {};
     }
 
     showToast(message, isSuccess = true) {
         const toastEl = document.getElementById('hotkeyToast');
         const toastBody = document.getElementById('hotkeyToastBody');
+        if (!toastEl || !toastBody) return;
 
         toastBody.textContent = message;
 
@@ -33,6 +38,8 @@ class Hotkeys {
         return { creator, map };
     }
 
+    // ─── Custom Map Hotkey Table ───────────────────────────────
+
     updateHotkeys() {
         const $list = $('#hotkeyList').empty();
 
@@ -41,7 +48,7 @@ class Hotkeys {
 
             const $row = $(`
                 <tr data-id="${id}">
-                    <td>${hotkey}</td>
+                    <td><kbd>${hotkey}</kbd></td>
                     <td>${map}</td>
                     <td>${creator}</td>
                 </tr>
@@ -58,7 +65,7 @@ class Hotkeys {
                         class="delete-row btn btn-link p-0"
                         data-id="${id}"
                         title="Delete row">
-                    <i class="fa fa-trash"></i>
+                    <i class="fas fa-trash-can"></i>
                 </button>
             </td>
         `;
@@ -82,6 +89,148 @@ class Hotkeys {
         });
     }
 
+    // ─── System Hotkey Table ───────────────────────────────────
+
+    async loadSystemHotkeys() {
+        try {
+            this.systemHotkeys = await ipcRenderer.invoke('get-system-hotkeys');
+        } catch (err) {
+            console.error("Failed to load system hotkeys:", err);
+            this.systemHotkeys = {};
+        }
+        this.updateSystemHotkeysTable();
+        this.updateHotkeyLabels();
+    }
+
+    updateSystemHotkeysTable() {
+        const $list = $('#systemHotkeyList');
+        if (!$list.length) return;
+        $list.empty();
+
+        for (const [actionId, def] of Object.entries(SYSTEM_HOTKEY_DEFS)) {
+            const currentAccel = this.systemHotkeys[actionId] || def.defaultAccelerator;
+            const display = acceleratorToDisplay(currentAccel);
+            const isDefault = currentAccel === def.defaultAccelerator;
+
+            const $row = $(`
+                <tr data-action="${actionId}">
+                    <td>${def.description}</td>
+                    <td><kbd class="system-hotkey-binding" data-action="${actionId}">${display}</kbd></td>
+                    <td class="text-center">
+                        <button type="button"
+                                class="edit-system-btn btn btn-sm btn-outline-primary"
+                                data-action="${actionId}"
+                                title="Edit hotkey">
+                            Edit
+                        </button>
+                    </td>
+                    <td class="text-center">
+                        <button type="button"
+                                class="reset-system-btn btn btn-sm btn-outline-warning"
+                                data-action="${actionId}"
+                                title="Reset to default"
+                                ${isDefault ? 'disabled' : ''}>
+                            Reset
+                        </button>
+                    </td>
+                </tr>
+            `);
+            $list.append($row);
+        }
+
+        // Edit button handlers
+        const self = this;
+        $('.edit-system-btn').off('click').on('click', function () {
+            const actionId = $(this).data('action');
+            self.startSystemHotkeyEdit(actionId);
+        });
+
+        // Reset button handlers
+        $('.reset-system-btn').off('click').on('click', function () {
+            const actionId = $(this).data('action');
+            ipcRenderer.send('reset-system-hotkey', { actionId });
+        });
+    }
+
+    /**
+     * Update all dynamic hotkey text labels across the DOM.
+     */
+    updateHotkeyLabels() {
+        // Lobby hint
+        const lobbyAccel = this.systemHotkeys['check-lobby'] || SYSTEM_HOTKEY_DEFS['check-lobby'].defaultAccelerator;
+        const $lobbyHint = $('#lobbyHotkeyHint');
+        if ($lobbyHint.length) $lobbyHint.text(acceleratorToDisplay(lobbyAccel));
+
+        // Detection toggle hint
+        const detectAccel = this.systemHotkeys['trigger-map-detection'] || SYSTEM_HOTKEY_DEFS['trigger-map-detection'].defaultAccelerator;
+        const $detectHint = $('#detectionHotkeyHint');
+        if ($detectHint.length) $detectHint.text(acceleratorToDisplay(detectAccel));
+    }
+
+    // ─── System Hotkey Editing ────────────────────────────────
+
+    startSystemHotkeyEdit(actionId) {
+        const def = SYSTEM_HOTKEY_DEFS[actionId];
+        if (!def) return;
+
+        this.editingSystemAction = actionId;
+
+        // Show the hotkey modal, hide map selector since we don't need it
+        $('#addHotkeyModal .modal-title').text(`Change Hotkey: ${def.description}`);
+        // Hide creator/map fields (container hides labels, selects, and TomSelect wrappers)
+        $('#mapCreatorFields').hide();
+
+        // Reset and focus the hotkey input
+        const $input = $('#hotkeyInput');
+        $input.val('').attr('placeholder', 'Listening...');
+        this.recordingHotkey = true;
+
+        // Change save button behavior
+        const self = this;
+        $('#saveHotkeyBtn').off('click').on('click', function () {
+            self.saveSystemHotkey();
+        });
+
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('addHotkeyModal'));
+        modal.show();
+    }
+
+    saveSystemHotkey() {
+        const actionId = this.editingSystemAction;
+        if (!actionId) return;
+
+        const rawVal = $('#hotkeyInput').val();
+        const displayAccel = rawVal.replace(/\s*\+\s*/g, '+');
+        const accelerator = displayToAccelerator(displayAccel);
+
+        if (!displayAccel) {
+            this.showToast('No key combination recorded.', false);
+            return;
+        }
+
+        ipcRenderer.send('save-system-hotkey', { actionId, accelerator });
+
+        // Modal closes via data-bs-dismiss on the button;
+        // restoreModalDefaults() will fire via hidden.bs.modal event.
+    }
+
+    restoreModalDefaults() {
+        $('#addHotkeyModal .modal-title').text('Bind New Hotkey');
+        $('#mapCreatorFields').show();
+        $('#hotkeyInput').val('').attr('placeholder', 'Press a key...');
+        this.editingSystemAction = null;
+        this.recordingHotkey = false;
+
+        // Restore save button for custom map hotkeys
+        const self = this;
+        $('#saveHotkeyBtn').off('click').on('click', function () {
+            self.saveHotkeyToFile();
+        });
+    }
+
+    // ─── Custom Map Hotkey Save ───────────────────────────────
+
     saveHotkeyToFile() {
         const settings = {
             hotkey: $('#hotkeyInput').val().replace(/\s*\+\s*/g, '+'),
@@ -93,6 +242,8 @@ class Hotkeys {
     registerHotkeys(hotkeys) {
         ipcRenderer.send('register-hotkeys', hotkeys);
     }
+
+    // ─── Load Everything ──────────────────────────────────────
 
     async loadHotkeys() {
         const mapDict = this.images.mapDictionary;
@@ -112,11 +263,11 @@ class Hotkeys {
             this.populateMapSelectForCreator(mapDict, selectedCreator);
         });
 
-        this.loadCapture()
+        this.loadCapture();
 
         ipcRenderer.on('hotkey-pressed', (event, mapKey) => {
-            let mapIamgePath = this.images.pathLookup[mapKey]
-            const response = this.images.sendMap(mapIamgePath, "standard");
+            let mapImagePath = this.images.pathLookup[mapKey];
+            const response = this.images.sendMap(mapImagePath, "standard");
             if (response) {
                 debugLog("hotkey::setMap::success", "Map set successfully");
             } else {
@@ -126,11 +277,23 @@ class Hotkeys {
 
         ipcRenderer.on('hotkey-updated', (event, hotkeys) => {
             this.hotkeys = hotkeys;
-            this.updateHotkeys()
+            this.updateHotkeys();
         });
+
+        // System hotkeys updated
+        ipcRenderer.on('system-hotkeys-updated', (event, bindings) => {
+            this.systemHotkeys = bindings;
+            this.updateSystemHotkeysTable();
+            this.updateHotkeyLabels();
+        });
+
+        // Load from main process
         ipcRenderer.send('load-hotkeys');
-        this.loadTable()
+        await this.loadSystemHotkeys();
+        this.loadTable();
     }
+
+    // ─── Map Selectors ────────────────────────────────────────
 
     populateCreatorSelect(mapDict) {
         const select = document.querySelector("#selectCreator");
@@ -145,7 +308,6 @@ class Hotkeys {
             select.tomselect.setValue(Object.keys(mapDict)[0]);
         }
     }
-
 
     populateMapSelectForCreator(mapDict, creator) {
         const $select = $("#selectMap");
@@ -176,7 +338,8 @@ class Hotkeys {
         });
     }
 
-    
+    // ─── Key Capture ──────────────────────────────────────────
+
     loadCapture() {
         const self = this;
 
@@ -217,8 +380,14 @@ class Hotkeys {
             }
         });
 
+        // Custom map hotkey save button (default behavior)
         $("#saveHotkeyBtn").on("click", () => {
             this.saveHotkeyToFile();
+        });
+
+        // When the add hotkey modal is hidden, always restore modal to default state
+        $('#addHotkeyModal').on('hidden.bs.modal', function () {
+            self.restoreModalDefaults();
         });
     }
 }

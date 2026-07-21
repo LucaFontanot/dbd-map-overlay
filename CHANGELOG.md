@@ -1,3 +1,9 @@
+## 1.6.4
+- Added system hotkey customize
+
+## 1.6.3
+- Added map detection with one-shot mode
+
 ## 1.6.2
 - Reworked the detection system thanks to @Complexifyed
 - Map localization and names updated thanks to @Complexifyed
