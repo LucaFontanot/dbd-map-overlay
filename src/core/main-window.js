@@ -32,9 +32,10 @@ class MainWindow {
                 bounds: display.bounds
             }));
         })
-        ipcMain.on('map-change', async (event, map) => {
-            // Stop detection when map changes (user click, lobby update, etc.)
-            if (this.mapDetector) this.mapDetector.stop();
+        ipcMain.on('map-change', async (event, map, opts = {}) => {
+            // Stop detection when map changes (user click, lobby update, etc.) --
+            // unless the change came from the detector itself, which should keep running.
+            if (!opts.fromDetector && this.mapDetector) this.mapDetector.stop();
 
             if (!map) {
                 overlayWindow.send('map-hide');
