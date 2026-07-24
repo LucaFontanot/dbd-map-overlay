@@ -29,6 +29,30 @@ async function syntheticFrame({ width = 1920, height = 1080, background, barWidt
     return sharp({ create: { width, height, channels: 3, background } }).composite(layers).png().toBuffer();
 }
 
+/**
+ * A font-free stand-in for a line of text sitting in the scan region: a small
+ * triangular spike, bounded in width and isolated from its surroundings just
+ * like a real bar, but tapering to a point within a few rows instead of
+ * holding a flat plateau the way a filled rectangle does. Rendering actual
+ * text via SVG would depend on whatever fonts happen to be installed on the
+ * machine running the tests, which isn't reproducible -- this reproduces the
+ * one geometric property that actually matters (spike vs. plateau) instead.
+ */
+async function spikeFrame({ width = 1920, height = 1080, baseFrac = 0.35, taperRows = 6 }) {
+    const scanX = width * 0.15, scanW = width * 0.7;
+    const baseW = Math.round(scanW * baseFrac);
+    const cx = Math.round(scanX + scanW / 2);
+    const baseY = Math.round(height * 0.9);
+    const points = [
+        [cx - baseW / 2, baseY],
+        [cx + baseW / 2, baseY],
+        [cx, baseY - taperRows],
+    ];
+    const svg = `<svg width="${width}" height="${height}"><polygon points="${points.map(p => p.join(',')).join(' ')}" fill="white"/></svg>`;
+    return sharp({ create: { width, height, channels: 3, background: { r: 8, g: 8, b: 8 } } })
+        .composite([{ input: Buffer.from(svg) }]).png().toBuffer();
+}
+
 test('progress-bar scan: finds the bar on the real loading screen at 100% UI scale', async () => {
     assert.ok(await hasFilledProgressBar(load('loading-screen-100.png')));
 });
@@ -51,6 +75,16 @@ test('progress-bar scan: does NOT false-positive on normal UI screens', async ()
         'endgame-public-scoreboard.png',
         'offering-screen.png',
     ]) {
+        assert.ok(!(await hasFilledProgressBar(load(name))), `${name} should NOT read as a loading bar`);
+    }
+});
+
+test('progress-bar scan: does NOT false-positive on DBD\'s own client boot screens (a real IDLE -> HUNTING misfire seen live)', async () => {
+    // Both pulled from a live capture of DBD's startup sequence -- each has a
+    // single centered line of text sitting in the exact scan band, which used
+    // to satisfy the fill-range and isolation checks the same way a real bar
+    // does. This is what led to adding the plateau check.
+    for (const name of ['boot-autosave-notice.png', 'boot-epilepsy-warning.png']) {
         assert.ok(!(await hasFilledProgressBar(load(name))), `${name} should NOT read as a loading bar`);
     }
 });
@@ -93,5 +127,14 @@ test('progress-bar scan: rejects a bounded-width bright row with no isolation (b
         barYFrac: 0.75,
         barHeightFrac: 0.25,
     });
+    assert.ok(!(await hasFilledProgressBar(frame)));
+});
+
+test('progress-bar scan: rejects a bounded, isolated spike that tapers instead of holding a plateau (a line of text, not a bar)', async () => {
+    // DBD's own boot-time tip/save/warning screens each put a centered line of
+    // text in this exact band -- bounded width, blank paragraph space around
+    // it, same signature as a real bar right up until you look at whether it
+    // holds its brightness across more than a couple of rows.
+    const frame = await spikeFrame({});
     assert.ok(!(await hasFilledProgressBar(frame)));
 });

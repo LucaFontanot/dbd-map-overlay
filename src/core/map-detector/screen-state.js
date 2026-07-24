@@ -23,12 +23,27 @@ const BAR_MIN_ISOLATION_CONTRAST = 0.18; // rows just off a real bar are near-em
 const ISOLATION_OFFSET_FRAC = 0.015;
 const ISOLATION_BAND_FRAC = 0.004;
 
+// A filled bar is a solid rectangle: its fill fraction stays close to its peak
+// across its whole thickness. A text line (DBD's own boot-time tip/save/warning
+// screens all have one sitting in this same band) fools the fill-range and
+// isolation checks alike -- a centered sentence is "bounded width" and has blank
+// paragraph space around it -- but it's a brightness SPIKE peaking at the
+// glyphs' x-height, not a plateau. Ratio is loose (not a tight 0.85+) because
+// compressed/downscaled captures introduce enough per-row noise to break a
+// strict threshold even across a real bar's own interior; 0.6 still cleanly
+// separated every real bar tested (0.65-1.5% of frame height) from every
+// text-line false positive (under 0.4%).
+const PLATEAU_STABILITY_RATIO = 0.6;
+const PLATEAU_MIN_HEIGHT_FRAC = 0.005;
+
 /**
  * Scans the bottom quarter of the frame for a real loading bar: a row whose
- * bright-pixel fraction is both bounded (not a full-width divider or a nearly-
- * full HUD row) and isolated (the rows around it are comparatively empty).
- * Color-agnostic by design -- it only looks at luma, so an event's reskinned
- * red/orange/green loading screen reads the same as the default black one.
+ * bright-pixel fraction is bounded (not a full-width divider or a nearly-full
+ * HUD row), isolated (the rows around it are comparatively empty), AND holds
+ * as a plateau across enough rows to be a filled rectangle rather than a line
+ * of text. Color-agnostic by design -- it only looks at luma, so an event's
+ * reskinned red/orange/green loading screen reads the same as the default
+ * black one.
  * @param {Buffer} pngBuffer
  * @returns {Promise<boolean>}
  */
@@ -65,8 +80,15 @@ async function hasFilledProgressBar(pngBuffer) {
         .slice(Math.max(0, peakIdx - offset - band), Math.max(0, peakIdx - offset))
         .concat(fracs.slice(Math.min(fracs.length, peakIdx + offset), Math.min(fracs.length, peakIdx + offset + band)));
     const avgNearby = nearby.length ? nearby.reduce((a, b) => a + b, 0) / nearby.length : 0;
+    if (peak - avgNearby < BAR_MIN_ISOLATION_CONTRAST) return false;
 
-    return peak - avgNearby >= BAR_MIN_ISOLATION_CONTRAST;
+    const plateauThreshold = peak * PLATEAU_STABILITY_RATIO;
+    let lo = peakIdx, hi = peakIdx;
+    while (lo > 0 && fracs[lo - 1] >= plateauThreshold) lo--;
+    while (hi < fracs.length - 1 && fracs[hi + 1] >= plateauThreshold) hi++;
+    const plateauRows = hi - lo + 1;
+
+    return plateauRows >= Math.max(2, Math.round(height * PLATEAU_MIN_HEIGHT_FRAC));
 }
 
 module.exports = { hasFilledProgressBar };
