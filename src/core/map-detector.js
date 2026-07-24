@@ -21,12 +21,12 @@
  *   map-detector-reload-realms  → re-scans photo dir for new realm names
  */
 
-const { desktopCapturer, ipcMain, app, screen } = require('electron');
+const { ipcMain, app } = require('electron');
 const { createWorker } = require('tesseract.js');
 const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
-const { Window, Monitor } = require('node-screenshots');
+const { Window } = require('node-screenshots');
 
 // ─── Language groups by writing system ───────────────────────────────────────
 // Covering all 15 localisation files bundled in src/i18n/
@@ -74,7 +74,6 @@ class MapDetector {
 
         /** @type {import('tesseract.js').Worker[]} */
         this.workers = [];
-        this.timer = null;
         this.running = false;
         this.mode = 'continuous'; // 'continuous' | 'oneshot'
         this.intervalMs = 1000;
@@ -192,8 +191,12 @@ class MapDetector {
     _resolveOcrGroups() {
         const lang = (this.settings.get('ocrLanguage') || 'all').trim();
         if (lang === 'all') return LANG_GROUPS;
-        const groupIndex = LANG_GROUPS.findIndex(g => g.split('+').includes(lang));
-        return [groupIndex !== -1 ? lang : lang]; // single worker, single language
+        const isKnownLanguage = LANG_GROUPS.some(g => g.split('+').includes(lang));
+        if (!isKnownLanguage) {
+            console.warn(`MapDetector: unknown ocrLanguage "${lang}", falling back to all languages`);
+            return LANG_GROUPS;
+        }
+        return [lang];
     }
 
     /** Creates tesseract.js workers (one per script group, or one if a specific language is set) */
@@ -263,32 +266,8 @@ class MapDetector {
         const buffer = await image.toPng();
 
         console.log(`MapDetector: window capture took ${performance.now() - start} ms`);
-        
-        await sharp(buffer).toFile('debug_raw.png');
 
         return buffer;
-    }
-
-    /**
-     * Crops the image to the lower-left region where DBD shows
-     * the REALM / MAP text on the loading screen.
-     *   x: 0 %–45 %   (left side)
-     *   y: 65 %–95 %  (lower portion)
-     *
-     * @param {Electron.NativeImage} img
-     * @returns {Electron.NativeImage}
-     */
-    _cropForText(img) {
-        const { width, height } = img.getSize();
-        if (width === 0 || height === 0) return img;
-        const crop = {
-            x:      0,
-            y:      Math.floor(height * 0.65),
-            width:  Math.floor(width  * 0.45),
-            height: Math.floor(height * 0.30),
-        };
-        console.log(`MapDetector: crop region x=${crop.x} y=${crop.y} w=${crop.width} h=${crop.height} (from ${width}x${height})`);
-        return img.crop(crop);
     }
 
     /**
@@ -530,12 +509,9 @@ class MapDetector {
             }
 
             this.lastCropBuffer = croppedBuffer;
-            
 
             console.log(`MapDetector: crop + extract took ${Date.now() - time} ms`);
             time = Date.now();
-
-            await sharp(croppedBuffer).toFile('debug_crop.png');
 
             // preprocess
             const imgBuffer = await this._preprocessImage(
@@ -547,8 +523,6 @@ class MapDetector {
 
             console.log(`MapDetector: preprocess took ${Date.now() - time} ms`);
             time = Date.now();
-
-            await sharp(imgBuffer).toFile('debug_preprocessed.png');
 
             // ocr
             const lines = await this._ocr(imgBuffer);
@@ -655,8 +629,6 @@ class MapDetector {
         this.mode = 'continuous';
         console.log('MapDetector: stopping');
 
-        clearInterval(this.timer);
-        this.timer = null;
         this.lastDetected = null;
         this.lastCropBuffer = null;
         this._detecting = false;
