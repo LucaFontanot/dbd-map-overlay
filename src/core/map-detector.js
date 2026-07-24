@@ -42,6 +42,8 @@ const { EndgameDetector } = require('./map-detector/endgame-detector');
 const { LobbyClassifier } = require('./map-detector/lobby-classifier');
 const { DetectionStateMachine } = require('./map-detector/detection-state-machine');
 
+const debug = process.env.DEBUG === 'true';
+
 // ─── Language groups by writing system ───────────────────────────────────────
 // Covering all 15 localisation files bundled in src/i18n/
 const LANG_GROUPS = [
@@ -379,10 +381,31 @@ class MapDetector {
             Math.floor(height * 0.30)
         );
 
+        if (debug) await this._saveDebugCrop(croppedBuffer, imgBuffer);
+
         const lines = await this._ocr(imgBuffer);
         if (!lines.length) return null;
 
         return this.ocrMatcher.matchLines(lines);
+    }
+
+    /**
+     * Opt-in only (DEBUG=true), writes to userData -- never process.cwd() -- so this
+     * can't reintroduce the unconditional-debug-write bug that used to live here.
+     * Lets you visually confirm exactly what the map/realm-name crop actually
+     * contains on your screen, e.g. whether the title text is even inside the box.
+     */
+    async _saveDebugCrop(croppedBuffer, preprocessedBuffer) {
+        try {
+            const debugDir = path.join(app.getPath('userData'), 'debug-crops');
+            fs.mkdirSync(debugDir, { recursive: true });
+            const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+            await sharp(croppedBuffer).toFile(path.join(debugDir, `${stamp}-crop.png`));
+            await sharp(preprocessedBuffer).toFile(path.join(debugDir, `${stamp}-preprocessed.png`));
+            console.log(`MapDetector: [DEBUG] saved crop images to ${debugDir} (${stamp}-*.png)`);
+        } catch (err) {
+            console.warn('MapDetector: [DEBUG] failed to save debug crop:', err.message);
+        }
     }
 
     /**

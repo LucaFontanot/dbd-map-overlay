@@ -9,17 +9,11 @@ class DetectionStateMachine {
         this._running = false;
         this._loopPromise = null;
 
-        // Best-effort, cached across the IDLE state: the lobby before the current
-        // loading screen might already be gone by the time HUNTING starts, so we
-        // remember the last classification rather than trying to re-derive it mid-load.
+        // Cached from IDLE, since the lobby is usually gone by the time HUNTING starts.
         this._lastLobbyWasCustom = false;
 
-        // Edge-detector for MATCH_ACTIVE's missed-endgame-screen escape path (see
-        // _runMatchActive): the tail end of the loading screen that HUNTING just
-        // confirmed is itself near-black + filled-bar, so the very first MATCH_ACTIVE
-        // tick can still see that same lingering frame. Only treat a near-black +
-        // filled-bar frame as a genuinely NEW loading screen once we've observed at
-        // least one non-near-black (real gameplay) frame since entering MATCH_ACTIVE.
+        // Stops the MATCH_ACTIVE escape path (see _runMatchActive) from firing on the
+        // tail of the loading screen we just came from.
         this._matchSeenBright = false;
     }
 
@@ -50,10 +44,7 @@ class DetectionStateMachine {
                     await this._runMatchActive();
                 }
             } catch (err) {
-                // A single bad tick (transient capture/OCR/classifier failure) must not
-                // kill automatic detection for the rest of the app session -- log and
-                // keep looping. A brief sleep avoids a tight error-retry loop if
-                // whatever threw is persistently broken.
+                // One bad tick shouldn't kill detection for the rest of the session.
                 console.error('DetectionStateMachine: tick failed, continuing:', err);
                 await sleep(this.deps.idlePollMs);
             }
@@ -63,11 +54,11 @@ class DetectionStateMachine {
     async _tickIdle() {
         const frame = await this.deps.captureFrame();
         if (frame) {
-            // Opportunistically remember whether the current lobby looks custom.
-            // Cheap relative to a HUNTING tick -- still gated behind having a frame at all.
+            // Remember whether the lobby looks custom, for detectInCustoms.
             const stats = await this.deps.computeFrameStats(frame);
             if (this.deps.isNearBlackFrame(stats)) {
                 if (await this.deps.hasFilledProgressBar(frame)) {
+                    console.log(`DetectionStateMachine: IDLE -> HUNTING (near-black frame with a filled progress bar detected; mean=${stats.mean?.toFixed?.(1)}, darkFrac=${stats.darkFrac?.toFixed?.(2)})`);
                     this._state = STATE.HUNTING;
                     return;
                 }
@@ -80,17 +71,19 @@ class DetectionStateMachine {
 
     async _runHunting() {
         if (this._lastLobbyWasCustom && !this.deps.detectInCustoms()) {
-            // Skip the expensive map-text OCR entirely for opted-out custom matches --
-            // still transition to MATCH_ACTIVE so we track when to return to IDLE,
-            // but never report a map or watch for the endgame screen (see _runMatchActive).
+            // Custom match, detection off for those: skip OCR, still track when it ends.
+            console.log('DetectionStateMachine: HUNTING -> MATCH_ACTIVE (custom lobby, detectInCustoms is off -- skipping map-text OCR)');
             this._state = STATE.MATCH_ACTIVE;
             this._skipMatchActive = true;
             return;
         }
         this._skipMatchActive = false;
 
-        const deadline = Date.now() + this.deps.huntTimeoutMs;
+        const startedAt = Date.now();
+        const deadline = startedAt + this.deps.huntTimeoutMs;
         let pendingKey = null;
+        let lastHeartbeatAt = startedAt;
+        console.log(`DetectionStateMachine: HUNTING started (timeout ${this.deps.huntTimeoutMs}ms, polling every ${this.deps.huntPollMs}ms)`);
 
         while (this._running && this._state === STATE.HUNTING && Date.now() < deadline) {
             const frame = await this.deps.captureFrame();
@@ -99,18 +92,26 @@ class DetectionStateMachine {
                 if (result) {
                     const key = result.realm ? `${result.realm}/${result.map}` : result.map;
                     if (key === pendingKey) {
+                        console.log(`DetectionStateMachine: HUNTING confirmed "${key}" after ${Date.now() - startedAt}ms (2 consecutive matching reads) -> MATCH_ACTIVE`);
                         this.deps.onMapDetected(key);
                         this._matchSeenBright = false;
                         this._state = STATE.MATCH_ACTIVE;
                         return;
                     }
+                    console.log(`DetectionStateMachine: HUNTING candidate "${key}" (needs one more matching read to confirm)`);
                     pendingKey = key;
                 }
+            }
+            const now = Date.now();
+            if (now - lastHeartbeatAt >= 2000) {
+                console.log(`DetectionStateMachine: HUNTING still running -- ${now - startedAt}ms elapsed of ${this.deps.huntTimeoutMs}ms timeout, no confirmed match yet`);
+                lastHeartbeatAt = now;
             }
             await sleep(this.deps.huntPollMs);
         }
 
         if (this._running) {
+            console.log(`DetectionStateMachine: HUNTING timed out after ${Date.now() - startedAt}ms with no confirmed map -> MATCH_ACTIVE anyway (will keep watching for the match to end)`);
             this._matchSeenBright = false;
             this._state = STATE.MATCH_ACTIVE;
         }
@@ -118,19 +119,12 @@ class DetectionStateMachine {
 
     async _runMatchActive() {
         if (this._skipMatchActive) {
-            // Opted-out custom match: just wait for a near-black frame with a bar again
-            // (next match's loading screen), skipping all endgame OCR in between.
+            // Just wait for the next loading screen, no endgame OCR for opted-out matches.
             await this._tickIdle();
             if (this._state === STATE.HUNTING) {
-                this._state = STATE.IDLE; // re-evaluate custom flag fresh next lobby
-                // _tickIdle() returns immediately (no internal sleep) on the near-black+bar
-                // branch, by design, so the primary IDLE loop reacts to a loading screen
-                // without delay. Reused here, that same branch would otherwise let this
-                // IDLE<->HUNTING<->MATCH_ACTIVE cycle spin with zero macrotask yields
-                // whenever the polled frame doesn't change between ticks -- a real hang,
-                // not just slow polling, since an unbroken chain of already-resolved
-                // promises starves the event loop and timers (including this class's own
-                // sleep() calls and setTimeout in general) never get a chance to fire.
+                this._state = STATE.IDLE; // re-check the custom flag fresh next lobby
+                // _tickIdle()'s near-black+bar branch never sleeps (fast reaction from
+                // IDLE), so we need a sleep here or this spins and starves the event loop.
                 await sleep(this.deps.matchPollMs);
             }
             return;
@@ -139,28 +133,24 @@ class DetectionStateMachine {
         const frame = await this.deps.captureFrame();
         if (frame) {
             if (await this.deps.isEndgameScreen(frame)) {
+                console.log('DetectionStateMachine: MATCH_ACTIVE -> IDLE (endgame screen detected, clearing overlay)');
                 this.deps.onMatchEnded();
                 this._state = STATE.IDLE;
                 return;
             }
 
-            // Independent escape path: the endgame screen can be missed entirely (alt-tab
-            // across the scoreboard, a transient OCR/ROI miss), which would otherwise strand
-            // this state forever -- a loading screen is never shown mid-match, so seeing the
-            // same near-black + filled-progress-bar signal _tickIdle() uses unambiguously means
-            // the previous match already ended. Skip straight to HUNTING (not IDLE) since we've
-            // already confirmed the new loading screen is present.
+            // Missed the endgame screen? A fresh loading screen also means the match
+            // ended, so jump straight to HUNTING instead of going back through IDLE.
             const stats = await this.deps.computeFrameStats(frame);
             if (this.deps.isNearBlackFrame(stats)) {
                 if (this._matchSeenBright && await this.deps.hasFilledProgressBar(frame)) {
+                    console.log('DetectionStateMachine: MATCH_ACTIVE -> HUNTING (missed the endgame screen, but a fresh loading screen appeared -- treating the previous match as over)');
                     this.deps.onMatchEnded();
                     this._state = STATE.HUNTING;
                     return;
                 }
             } else {
-                // Real gameplay frame observed -- any subsequent near-black + filled-bar
-                // frame is now unambiguously a NEW loading screen, not just the tail end
-                // of the one HUNTING already confirmed us out of.
+                // Real gameplay seen, so a later near-black+bar frame is a genuinely new loading screen.
                 this._matchSeenBright = true;
             }
         }
