@@ -37,7 +37,7 @@ const fs = require('fs');
 const sharp = require('sharp');
 const { Window } = require('node-screenshots');
 const { OcrMatcher } = require('./map-detector/ocr-matcher');
-const { computeFrameStats, isNearBlackFrame, hasFilledProgressBar } = require('./map-detector/screen-state');
+const { hasFilledProgressBar } = require('./map-detector/screen-state');
 const { EndgameDetector, ROI_X_START_FRAC: ENDGAME_ROI_X, ROI_Y_START_FRAC: ENDGAME_ROI_Y } = require('./map-detector/endgame-detector');
 const { LobbyClassifier } = require('./map-detector/lobby-classifier');
 const { DetectionStateMachine } = require('./map-detector/detection-state-machine');
@@ -263,8 +263,6 @@ class MapDetector {
 
         this._stateMachine = new DetectionStateMachine({
             captureFrame: () => this._captureDBD(),
-            computeFrameStats,
-            isNearBlackFrame,
             hasFilledProgressBar,
             isCustomLobby: (frame) => this._lobbyClassifier.isCustomLobby(frame),
             recognizeMapText: async (frame) => {

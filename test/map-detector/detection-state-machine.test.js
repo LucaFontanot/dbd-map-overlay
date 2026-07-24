@@ -8,8 +8,6 @@ function buildDeps(overrides = {}) {
     const calls = { onMapDetected: [], onMatchEnded: [] };
     const deps = {
         captureFrame: async () => Buffer.from('frame'),
-        computeFrameStats: async () => ({ mean: 100, darkFrac: 0 }),
-        isNearBlackFrame: (stats) => stats.mean < 15,
         hasFilledProgressBar: async () => false,
         isCustomLobby: async () => false,
         recognizeMapText: async () => null,
@@ -26,7 +24,7 @@ function buildDeps(overrides = {}) {
     return { deps, calls };
 }
 
-test('stays IDLE while frames are bright (no near-black frame seen)', async () => {
+test('stays IDLE while no loading bar is detected', async () => {
     const { deps } = buildDeps();
     const sm = new DetectionStateMachine(deps);
     sm.start();
@@ -35,22 +33,9 @@ test('stays IDLE while frames are bright (no near-black frame seen)', async () =
     sm.stop();
 });
 
-test('near-black frame WITHOUT a filled bar (boot splash) does not enter HUNTING', async () => {
-    const { deps } = buildDeps({
-        computeFrameStats: async () => ({ mean: 2, darkFrac: 0.95 }),
-        hasFilledProgressBar: async () => false,
-    });
-    const sm = new DetectionStateMachine(deps);
-    sm.start();
-    await sleep(50);
-    assert.equal(sm.state, 'IDLE');
-    sm.stop();
-});
-
-test('near-black frame WITH a filled bar enters HUNTING, and a confirmed map fires onMapDetected then moves to MATCH_ACTIVE', async () => {
+test('a filled bar enters HUNTING, and a confirmed map fires onMapDetected then moves to MATCH_ACTIVE', async () => {
     let tick = 0;
     const { deps, calls } = buildDeps({
-        computeFrameStats: async () => ({ mean: 2, darkFrac: 0.95 }),
         hasFilledProgressBar: async () => true,
         recognizeMapText: async () => {
             tick++;
@@ -75,7 +60,6 @@ test('a single-tick OCR misread does not fire onMapDetected (requires 2 consecut
         { realm: 'Autohaven Wreckers', map: 'Blood Lodge' },
     ];
     const { deps, calls } = buildDeps({
-        computeFrameStats: async () => ({ mean: 2, darkFrac: 0.95 }),
         hasFilledProgressBar: async () => true,
         recognizeMapText: async () => results[Math.min(tick++, results.length - 1)],
     });
@@ -88,7 +72,6 @@ test('a single-tick OCR misread does not fire onMapDetected (requires 2 consecut
 
 test('HUNTING with no confirmed map eventually times out into MATCH_ACTIVE without firing onMapDetected', async () => {
     const { deps, calls } = buildDeps({
-        computeFrameStats: async () => ({ mean: 2, darkFrac: 0.95 }),
         hasFilledProgressBar: async () => true,
         recognizeMapText: async () => null,
         huntTimeoutMs: 30,
@@ -103,14 +86,14 @@ test('HUNTING with no confirmed map eventually times out into MATCH_ACTIVE witho
 });
 
 test('MATCH_ACTIVE polls for the endgame screen and returns to IDLE, firing onMatchEnded', async () => {
-    // computeFrameStats is only consulted from the IDLE tick, so it only needs to be
-    // near-black ONCE (to enter HUNTING the first time) -- if it stayed near-black on
-    // every call, the machine would keep re-entering HUNTING/MATCH_ACTIVE forever and
-    // there would be no reliable moment to observe it "settled" in IDLE.
-    let idleTicks = 0;
+    // isEndgameScreen fires first in MATCH_ACTIVE and returns before hasFilledProgressBar
+    // is ever consulted there, so this only needs to report a bar ONCE (to enter HUNTING
+    // the first time) -- if it kept reporting one, the machine would keep re-entering
+    // HUNTING/MATCH_ACTIVE forever and there'd be no reliable moment to observe it
+    // "settled" in IDLE.
+    let calls_ = 0;
     const { deps, calls } = buildDeps({
-        computeFrameStats: async () => (idleTicks++ === 0 ? { mean: 2, darkFrac: 0.95 } : { mean: 100, darkFrac: 0 }),
-        hasFilledProgressBar: async () => true,
+        hasFilledProgressBar: async () => calls_++ === 0,
         recognizeMapText: async () => ({ realm: null, map: 'Blood Lodge' }),
         isEndgameScreen: async () => true,
         matchPollMs: 10,
@@ -124,25 +107,24 @@ test('MATCH_ACTIVE polls for the endgame screen and returns to IDLE, firing onMa
 });
 
 test('MATCH_ACTIVE detects a fresh loading screen (missed endgame screen) and transitions straight to HUNTING via onMatchEnded', async () => {
-    // computeFrameStats sequencing:
-    //   tick 1        -> near-black + filled bar: enters HUNTING from IDLE.
-    //   ticks 2-3      -> bright: MATCH_ACTIVE steady state, no loading screen yet.
-    //   tick 4 onward -> near-black + filled bar again: the NEXT match's loading
-    //                    screen has appeared, even though isEndgameScreen (below)
-    //                    never fires -- this is the independent escape path.
-    let statsTick = 0;
+    // hasFilledProgressBar sequencing:
+    //   tick 1        -> true: enters HUNTING from IDLE.
+    //   ticks 2-3     -> false: MATCH_ACTIVE steady state, no loading screen yet
+    //                    (this is what sets _matchSeenBright).
+    //   tick 4 onward -> true again: the NEXT match's loading screen has appeared,
+    //                    even though isEndgameScreen (below) never fires -- this
+    //                    is the independent escape path.
+    let barTick = 0;
     // recognizeMapText: first two calls agree (confirms the initial map, entering
     // MATCH_ACTIVE); after that, return null so the second HUNTING pass (entered
     // via the escape path) never reconfirms a map and flips back to MATCH_ACTIVE
     // before we get a chance to observe the HUNTING state.
     let mapTick = 0;
     const { deps, calls } = buildDeps({
-        computeFrameStats: async () => {
-            statsTick++;
-            if (statsTick === 1 || statsTick >= 4) return { mean: 2, darkFrac: 0.95 };
-            return { mean: 100, darkFrac: 0 };
+        hasFilledProgressBar: async () => {
+            barTick++;
+            return barTick === 1 || barTick >= 4;
         },
-        hasFilledProgressBar: async () => true,
         recognizeMapText: async () => {
             mapTick++;
             return mapTick <= 2 ? { realm: null, map: 'Blood Lodge' } : null;
@@ -168,7 +150,6 @@ test('_run() survives an uncaught throw from a dependency on one tick and keeps 
             if (captureCalls === 1) throw new Error('boom: transient capture failure');
             return Buffer.from('frame');
         },
-        computeFrameStats: async () => ({ mean: 2, darkFrac: 0.95 }),
         hasFilledProgressBar: async () => true,
         recognizeMapText: async () => ({ realm: null, map: 'Blood Lodge' }),
         idlePollMs: 10,
@@ -185,13 +166,12 @@ test('_run() survives an uncaught throw from a dependency on one tick and keeps 
 });
 
 test('detectInCustoms=false skips a custom lobby entirely: HUNTING still runs but onMapDetected never fires and endgame handling is skipped', async () => {
-    // First IDLE tick must see a BRIGHT frame so isCustomLobby() actually gets checked
-    // and cached (the real _tickIdle only calls isCustomLobby on the non-near-black
-    // branch) -- every tick after that simulates the loading screen appearing.
+    // First IDLE tick must report NO bar so isCustomLobby() actually gets checked and
+    // cached (the real _tickIdle only calls isCustomLobby when no bar is seen) -- every
+    // tick after that simulates the loading screen appearing.
     let tick = 0;
     const { deps, calls } = buildDeps({
-        computeFrameStats: async () => (tick++ === 0 ? { mean: 100, darkFrac: 0 } : { mean: 2, darkFrac: 0.95 }),
-        hasFilledProgressBar: async () => true,
+        hasFilledProgressBar: async () => tick++ !== 0,
         isCustomLobby: async () => true,
         detectInCustoms: () => false,
         recognizeMapText: async () => ({ realm: null, map: 'Blood Lodge' }),

@@ -54,17 +54,13 @@ class DetectionStateMachine {
     async _tickIdle() {
         const frame = await this.deps.captureFrame();
         if (frame) {
-            // Remember whether the lobby looks custom, for detectInCustoms.
-            const stats = await this.deps.computeFrameStats(frame);
-            if (this.deps.isNearBlackFrame(stats)) {
-                if (await this.deps.hasFilledProgressBar(frame)) {
-                    console.log(`DetectionStateMachine: IDLE -> HUNTING (near-black frame with a filled progress bar detected; mean=${stats.mean?.toFixed?.(1)}, darkFrac=${stats.darkFrac?.toFixed?.(2)})`);
-                    this._state = STATE.HUNTING;
-                    return;
-                }
-            } else {
-                this._lastLobbyWasCustom = await this.deps.isCustomLobby(frame);
+            if (await this.deps.hasFilledProgressBar(frame)) {
+                console.log('DetectionStateMachine: IDLE -> HUNTING (loading screen detected)');
+                this._state = STATE.HUNTING;
+                return;
             }
+            // Remember whether the lobby looks custom, for detectInCustoms.
+            this._lastLobbyWasCustom = await this.deps.isCustomLobby(frame);
         }
         await sleep(this.deps.idlePollMs);
     }
@@ -141,16 +137,15 @@ class DetectionStateMachine {
 
             // Missed the endgame screen? A fresh loading screen also means the match
             // ended, so jump straight to HUNTING instead of going back through IDLE.
-            const stats = await this.deps.computeFrameStats(frame);
-            if (this.deps.isNearBlackFrame(stats)) {
-                if (this._matchSeenBright && await this.deps.hasFilledProgressBar(frame)) {
+            if (await this.deps.hasFilledProgressBar(frame)) {
+                if (this._matchSeenBright) {
                     console.log('DetectionStateMachine: MATCH_ACTIVE -> HUNTING (missed the endgame screen, but a fresh loading screen appeared -- treating the previous match as over)');
                     this.deps.onMatchEnded();
                     this._state = STATE.HUNTING;
                     return;
                 }
             } else {
-                // Real gameplay seen, so a later near-black+bar frame is a genuinely new loading screen.
+                // Real gameplay seen, so a later bar sighting is a genuinely new loading screen.
                 this._matchSeenBright = true;
             }
         }
