@@ -41,6 +41,7 @@ const { computeFrameStats, isNearBlackFrame, hasFilledProgressBar } = require('.
 const { EndgameDetector } = require('./map-detector/endgame-detector');
 const { LobbyClassifier } = require('./map-detector/lobby-classifier');
 const { DetectionStateMachine } = require('./map-detector/detection-state-machine');
+const { preprocessMapCrop } = require('./map-detector/preprocess-map-crop');
 
 const debug = process.env.DEBUG === 'true';
 
@@ -382,7 +383,7 @@ class MapDetector {
             .png()
             .toBuffer();
 
-        const imgBuffer = await this._preprocessImage(
+        const imgBuffer = await preprocessMapCrop(
             croppedBuffer,
             Math.floor(width * 0.45),
             Math.floor(height * 0.30)
@@ -413,28 +414,6 @@ class MapDetector {
         } catch (err) {
             console.warn('MapDetector: [DEBUG] failed to save debug crop:', err.message);
         }
-    }
-
-    /**
-     * Preprocesses the cropped PNG for Tesseract:
-     *   1. 2× upscale  — improves OCR accuracy on small text
-     *   2. Greyscale   — removes colour noise
-     *   3. Normalise   — stretches contrast across full range
-     *   4. Blur      — smooth anti-aliased edges before binarisation — prevents single-word splits
-     *   5. Threshold   — hard binarise, drops background gradients
-     *
-     * @param {Buffer} pngBuffer
-     * @returns {Promise<Buffer>}
-     */
-    async _preprocessImage(pngBuffer, width, height) {
-        return sharp(pngBuffer)
-            .resize(width * 2, height * 2, { kernel: sharp.kernel.lanczos3 })
-            .greyscale()
-            .normalize()
-            .blur(0.5)
-            .threshold(128)
-            .png()
-            .toBuffer();
     }
 
     /**
