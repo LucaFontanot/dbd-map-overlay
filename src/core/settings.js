@@ -17,6 +17,8 @@ const defaultConfig = {
     monitor: 0,
     overlayX: null,
     overlayY: null,
+    glideX: null,
+    glideY: null,
     mapDetection: false,
     ocrLanguage: 'all',
     preferredCreator: '',

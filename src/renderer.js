@@ -166,8 +166,8 @@ ipcRenderer.on('rotate-map', async (event) => {
     const newRotation = (currentRotation + 90) % 360;
     await settings.set("rotation", newRotation);
     // Update UI if available
-    if ($("#rotationRange").length) {
-        $("#rotationRange").val(newRotation);
+    if ($("#rotationSelect").length) {
+        $("#rotationSelect").val(String(newRotation));
     }
     // Re-send the current map with new rotation, or use cached map if available
     if (images.lastMap !== "") {

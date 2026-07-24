@@ -3,6 +3,7 @@ const path = require("path");
 const {autoUpdater} = require("electron-updater");
 const fs = require("fs");
 const { imageSize } = require('image-size')
+const { computeOverlayPosition, rotatedSize } = require('./overlay-position');
 
 const debug = process.env.DEBUG === 'true';
 
@@ -41,12 +42,13 @@ class MainWindow {
         })
         ipcMain.on('map-change', async (event, map, opts = {}) => {
             // Stop detection when map changes (user click, lobby update, etc.) --
-            // unless the change came from the detector itself, which should keep running.
-            if (!opts.fromDetector && this.mapDetector) this.mapDetector.stop();
+            // unless the change came from the detector itself, which should keep
+            // running, or is only the settings preview touching the overlay.
+            if (!opts.fromDetector && !opts.preview && this.mapDetector) this.mapDetector.stop();
 
             if (!map) {
                 overlayWindow.send('map-hide');
-                obsWindow.send('map-hide');
+                if (!opts.preview) obsWindow.send('map-hide');
             } else {
                 let imgData = "";
                 if (map.startsWith("\\") || map.startsWith("/")) {
@@ -75,36 +77,40 @@ class MainWindow {
                     x: this.settings.get('overlayX') || 0,
                     y: this.settings.get('overlayY') || 0
                 })
-                overlayWindow.setSize(parseInt(settings.get('size')) + 5, parseInt((settings.get('size') / dimensions.width) * dimensions.height * 1.1))
+                // Window fits the rotated bounding box so arbitrary angles don't clip
+                const displayWidth = parseInt(settings.get('size'));
+                const rotated = rotatedSize({
+                    width: displayWidth,
+                    height: (displayWidth / dimensions.width) * dimensions.height,
+                    rotation: settings.get('rotation')
+                });
+                overlayWindow.setSize(rotated.width + 5, parseInt(rotated.height * 1.1))
                 console.log("Selected display:", selectedDisplay);
                 console.log("Overlay bounds:", overlayWindow.getBounds());
                 console.log("Image dimensions:", dimensions);
-                console.log("Calculated overlay size:", {width: parseInt(settings.get('size')) + 5, height: parseInt((settings.get('size') / dimensions.width) * dimensions.height * 1.1)});
+                console.log("Calculated overlay size:", {width: rotated.width + 5, height: parseInt(rotated.height * 1.1)});
                 console.log("Display bounds:", {x: displayX, y: displayY, width, height});
                 console.log("Overlay position setting:", settings.get('position'));
                 console.log("Draggable setting:", settings.get('draggable'));
                 if (!settings.get('draggable')) {
-                    switch (settings.get('position')) {
-                        case "1":
-                            overlayWindow.setPosition(displayX, displayY);
-                            break;
-                        case "2":
-                            overlayWindow.setPosition(displayX + width - overlayWindow.getBounds().width, displayY);
-                            break;
-                        case "3":
-                            overlayWindow.setPosition(displayX, displayY + height - overlayWindow.getBounds().height);
-                            break;
-                        case "4":
-                            overlayWindow.setPosition(displayX + width - overlayWindow.getBounds().width, displayY + height - overlayWindow.getBounds().height);
-                            break;
-                    }
+                    const overlayBounds = overlayWindow.getBounds();
+                    const {x, y} = computeOverlayPosition({
+                        workArea: selectedDisplay.workArea,
+                        overlayWidth: overlayBounds.width,
+                        overlayHeight: overlayBounds.height,
+                        position: settings.get('position'),
+                        glideX: settings.get('glideX'),
+                        glideY: settings.get('glideY')
+                    });
+                    overlayWindow.setPosition(x, y);
                 }
                 if (!settings.get('hideOverlay')) {
                     overlayWindow.send('map-change', Buffer.from(imgData).toString("base64"), settings.get('size'), settings.get('opacity'), settings.get('draggable'), settings.get('rotation'))
                 } else {
                     overlayWindow.send('map-change', Buffer.from("").toString("base64"), settings.get('size'), settings.get('opacity'), settings.get('draggable'), settings.get('rotation'));
                 }
-                obsWindow.send('map-change', Buffer.from(imgData).toString("base64"), settings.get('size'));
+                // The settings preview stays off the OBS window -- it must never leak into a stream
+                if (!opts.preview) obsWindow.send('map-change', Buffer.from(imgData).toString("base64"), settings.get('size'));
             }
 
         });

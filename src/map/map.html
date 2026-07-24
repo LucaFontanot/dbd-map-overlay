@@ -11,6 +11,16 @@
     ::-webkit-scrollbar {
         display: none;
     }
+    /* Center the map so rotation pivots around the window center -- the
+       window itself is sized to the rotated bounding box by the main process */
+    body {
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
 </style>
 <body>
   <img src="" id="mainImg"/>

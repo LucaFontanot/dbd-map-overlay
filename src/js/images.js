@@ -304,6 +304,9 @@ class Images {
         this.lastMap = map;
         this.lastMapType = type;
         ipcRenderer.send('map-change', map, { fromDetector });
+        // A map arriving mid-preview (detector, lobby) must not replace the
+        // sample map on screen -- it is recorded above and re-covered here.
+        if (this.options && this.options.previewActive) this.options.sendPreview();
         if (api) {
             if (type === "custom") {
                 let data = await ipcRenderer.invoke('read-custom-data', map);
