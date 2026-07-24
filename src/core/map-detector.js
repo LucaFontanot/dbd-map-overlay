@@ -13,12 +13,21 @@
  * Language packs (~45 MB total, "fast" LSTM model) are downloaded once
  * and stored in <userData>/tessdata.
  *
+ * Detection has two independent paths:
+ *   - Manual/hotkey: start()/detectOnce()/stop() manage a worker pool used for a
+ *     single on-demand recognition pass (see index.html's hotkey trigger).
+ *   - Automatic: startAutomatic()/stopAutomatic() manage an internal, always-on
+ *     DetectionStateMachine (IDLE → HUNTING → MATCH_ACTIVE) that stays cheap while
+ *     idle and only runs the full OCR pipeline while a match is loading.
+ *
  * IPC handles exposed to the renderer:
- *   map-detector-start          → start() — creates workers + begins continuous polling
- *   map-detector-oneshot        → detectOnce() — runs until first match, then auto-stops
- *   map-detector-stop           → stop()
- *   map-detector-status         → returns Boolean (running)
- *   map-detector-reload-realms  → re-scans photo dir for new realm names
+ *   map-detector-start            → start() — creates the manual worker pool
+ *   map-detector-oneshot          → detectOnce() — one recognition pass
+ *   map-detector-stop             → stop()
+ *   map-detector-status           → returns Boolean (is the automatic loop running)
+ *   map-detector-reload-realms    → re-scans photo dir for new realm names
+ *   map-detector-start-automatic  → startAutomatic()
+ *   map-detector-stop-automatic   → stopAutomatic()
  */
 
 const { ipcMain, app } = require('electron');
@@ -27,6 +36,11 @@ const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
 const { Window } = require('node-screenshots');
+const { OcrMatcher } = require('./map-detector/ocr-matcher');
+const { computeFrameStats, isNearBlackFrame, hasFilledProgressBar } = require('./map-detector/screen-state');
+const { EndgameDetector } = require('./map-detector/endgame-detector');
+const { LobbyClassifier } = require('./map-detector/lobby-classifier');
+const { DetectionStateMachine } = require('./map-detector/detection-state-machine');
 
 // ─── Language groups by writing system ───────────────────────────────────────
 // Covering all 15 localisation files bundled in src/i18n/
@@ -74,9 +88,6 @@ class MapDetector {
 
         /** @type {import('tesseract.js').Worker[]} */
         this.workers = [];
-        this.running = false;
-        this.mode = 'continuous'; // 'continuous' | 'oneshot'
-        this.intervalMs = 1000;
 
         /** Maps every localised string (lowercase) to its English key */
         this.reverseI18n = new Map();
@@ -87,14 +98,14 @@ class MapDetector {
         /** English realm names (lowercase) derived from i18n + photo directory */
         this.realmKeys = new Set();
 
-        /** Last matched "realm/map" key — suppresses duplicate events */
-        this.lastDetected = null;
+        /** @type {OcrMatcher|null} built after i18n loads, since it needs reverseI18n/normalizedI18n/realmKeys */
+        this.ocrMatcher = null;
 
-        /** Raw PNG of the last crop — skips preprocess+OCR when screen is unchanged */
-        this.lastCropBuffer = null;
-
-        /** Prevents concurrent _detect() calls from overlapping */
-        this._detecting = false;
+        /** @type {import('tesseract.js').Worker|null} lightweight, always-'eng', used only by the state machine's cheap classifiers */
+        this._classifierWorker = null;
+        this._endgameDetector = null;
+        this._lobbyClassifier = null;
+        this._stateMachine = null;
 
         this._loadI18n();
         this._setupIPC();
@@ -140,6 +151,12 @@ class MapDetector {
         console.log(`MapDetector: reverseI18n total size: ${this.reverseI18n.size}`);
 
         this._loadRealmKeys();
+
+        this.ocrMatcher = new OcrMatcher({
+            reverseI18n: this.reverseI18n,
+            normalizedI18n: this.normalizedI18n,
+            realmKeys: this.realmKeys,
+        });
     }
 
     /**
@@ -180,8 +197,12 @@ class MapDetector {
         ipcMain.handle('map-detector-start',         () => this.start());
         ipcMain.handle('map-detector-oneshot',       () => this.detectOnce());
         ipcMain.handle('map-detector-stop',          () => this.stop());
-        ipcMain.handle('map-detector-status',        () => this.running);
+        // Reflects whether the automatic (always-on) DetectionStateMachine loop is
+        // active -- not the manual/hotkey worker pool managed by start()/stop().
+        ipcMain.handle('map-detector-status',        () => !!this._stateMachine);
         ipcMain.handle('map-detector-reload-realms', () => this._loadRealmKeys());
+        ipcMain.handle('map-detector-start-automatic', () => this.startAutomatic());
+        ipcMain.handle('map-detector-stop-automatic',  () => this.stopAutomatic());
     }
 
     /**
@@ -227,6 +248,69 @@ class MapDetector {
         this.workers = [];
     }
 
+    async _ensureStateMachine() {
+        if (this._stateMachine) return this._stateMachine;
+
+        const cachePath = path.join(app.getPath('userData'), 'tessdata');
+        fs.mkdirSync(cachePath, { recursive: true });
+        const workerPath = path.join(path.dirname(require.resolve('tesseract.js/package.json')), 'src', 'worker-script', 'node', 'index.js');
+        const corePath = path.join(path.dirname(require.resolve('tesseract.js-core/package.json')), 'tesseract-core-simd-lstm.wasm.js');
+        this._classifierWorker = await createWorker('eng', 1, { cachePath, workerPath, corePath });
+        this._endgameDetector = new EndgameDetector(this._classifierWorker);
+        this._lobbyClassifier = new LobbyClassifier(this._classifierWorker);
+
+        this._stateMachine = new DetectionStateMachine({
+            captureFrame: () => this._captureDBD(),
+            computeFrameStats,
+            isNearBlackFrame,
+            hasFilledProgressBar,
+            isCustomLobby: (frame) => this._lobbyClassifier.isCustomLobby(frame),
+            recognizeMapText: async (frame) => {
+                if (this.workers.length === 0) await this._createWorkers();
+                return this._recognizeMapText(frame);
+            },
+            isEndgameScreen: (frame) => this._endgameDetector.isEndgameScreen(frame),
+            onMapDetected: (detectionKey) => {
+                console.log(`MapDetector: matched -> ${detectionKey}`);
+                this.mainWindow.send('show-map-command', detectionKey.replace(/'/g, '').trim());
+            },
+            onMatchEnded: () => {
+                console.log('MapDetector: endgame screen detected, clearing overlay');
+                this.mainWindow.send('map-detector-clear');
+                this._destroyWorkers();
+            },
+            detectInCustoms: () => this.settings.get('detectInCustoms') !== false,
+            idlePollMs: 1500,
+            huntPollMs: 350,
+            huntTimeoutMs: 20000,
+            matchPollMs: 2500,
+        });
+        return this._stateMachine;
+    }
+
+    /** Starts the always-on, low-cost automatic detection loop. Safe to call multiple times. */
+    async startAutomatic() {
+        const sm = await this._ensureStateMachine();
+        sm.start();
+    }
+
+    /**
+     * Stops the automatic loop AND tears down the classifier worker, so a later
+     * startAutomatic() rebuilds everything fresh rather than reusing (or leaking)
+     * a stale worker -- this mirrors the memoization guard at the top of
+     * _ensureStateMachine(), which only skips rebuilding while _stateMachine is non-null.
+     */
+    async stopAutomatic() {
+        if (this._stateMachine) this._stateMachine.stop();
+        this._stateMachine = null;
+        this._endgameDetector = null;
+        this._lobbyClassifier = null;
+        if (this._classifierWorker) {
+            await this._classifierWorker.terminate().catch(() => {});
+            this._classifierWorker = null;
+        }
+    }
+
     /**
      * Captures a thumbnail of the DeadByDaylight window.
      * @returns {Electron.NativeImage | null}
@@ -268,6 +352,37 @@ class MapDetector {
         console.log(`MapDetector: window capture took ${performance.now() - start} ms`);
 
         return buffer;
+    }
+
+    /**
+     * @param {Buffer} fullFrameBuffer
+     * @returns {Promise<{realm: string|null, map: string}|null>}
+     */
+    async _recognizeMapText(fullFrameBuffer) {
+        const meta = await sharp(fullFrameBuffer).metadata();
+        const { width, height } = meta;
+        if (!width || !height) return null;
+
+        const croppedBuffer = await sharp(fullFrameBuffer)
+            .extract({
+                left: 0,
+                top: Math.floor(height * 0.65),
+                width: Math.floor(width * 0.45),
+                height: Math.floor(height * 0.30),
+            })
+            .png()
+            .toBuffer();
+
+        const imgBuffer = await this._preprocessImage(
+            croppedBuffer,
+            Math.floor(width * 0.45),
+            Math.floor(height * 0.30)
+        );
+
+        const lines = await this._ocr(imgBuffer);
+        if (!lines.length) return null;
+
+        return this.ocrMatcher.matchLines(lines);
     }
 
     /**
@@ -329,310 +444,33 @@ class MapDetector {
         return lines;
     }
 
-    /**
-     * Scans OCR lines for consecutive REALM → MAP pairs (in that order,
-     * as the game renders them).  Falls back to MAP → REALM order if the
-     * image is rotated or the crop is slightly off.
-     *
-     * @param {string[]} lines
-     * @returns {{ realm: string, map: string } | null}
-     */
-    _levenshtein(a, b) {
-        const m = a.length, n = b.length;
-        const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
-        for (let j = 0; j <= n; j++) dp[0][j] = j;
-        for (let i = 1; i <= m; i++)
-            for (let j = 1; j <= n; j++)
-                dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1]
-                    : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
-        return dp[m][n];
-    }
-
-    _fuzzyMatchRealmKey(raw) {
-        // Scale tolerance with length: ~18 % of chars, min 2 (handles single misreads and short names)
-        const MAX_DIST = Math.max(2, Math.floor(raw.length * 0.18));
-        let best = null, bestDist = MAX_DIST + 1;
-        for (const realmKey of this.realmKeys) {
-            const dist = this._levenshtein(raw, realmKey);
-            if (dist < bestDist) { bestDist = dist; best = realmKey; }
-        }
-        return bestDist <= MAX_DIST ? best : null;
-    }
-
-    /** Fuzzy search across all normalizedI18n keys — catches map names with OCR typos */
-    _fuzzyMatchI18n(raw) {
-        const MAX_DIST = Math.max(2, Math.floor(raw.length * 0.18));
-        let best = null, bestDist = MAX_DIST + 1;
-        for (const [key, value] of this.normalizedI18n) {
-            if (Math.abs(key.length - raw.length) > MAX_DIST) continue;
-            const dist = this._levenshtein(raw, key);
-            if (dist < bestDist) { bestDist = dist; best = value; }
-        }
-        return bestDist <= MAX_DIST ? best : null;
-    }
-
-    /**
-     * Tries every lookup strategy (exact → normalized → substring → fuzzy) for a single candidate string.
-     * @param {string} candidate  Already lowercased+trimmed
-     * @returns {string|null}     English map/realm key, or null
-     */
-    _tryMatch(candidate) {
-        const raw = candidate.toLowerCase().trim();
-
-        const exact = this.reverseI18n.get(raw);
-        if (exact) return exact;
-
-        const normRaw = raw.replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
-        if (normRaw.length > 2) {
-            const normKey = this.normalizedI18n.get(normRaw);
-            if (normKey) return normKey;
-        }
-
-        // Substring: OCR captured only a suffix/prefix of the true label
-        // (e.g. "enville square" is the last 14 chars of "greenville square")
-        if (normRaw.length >= 5) {
-            for (const [key, value] of this.normalizedI18n) {
-                if (key.endsWith(normRaw) || key.startsWith(normRaw) || key.includes(normRaw)) return value;
-            }
-        }
-
-        if (raw.length >= 4) {
-            const fuzzy = this._fuzzyMatchRealmKey(raw);
-            if (fuzzy) return this.reverseI18n.get(fuzzy) ?? fuzzy;
-
-            // Broad fuzzy over all map/realm names — require ≥6 chars to avoid short garbage matching
-            if (raw.length >= 6) {
-                const fuzzyI18n = this._fuzzyMatchI18n(normRaw.length > 2 ? normRaw : raw);
-                if (fuzzyI18n) return fuzzyI18n;
-            }
-        }
-
-        return null;
-    }
-
-    _matchLines(lines) {
-        console.log(`MapDetector: matching ${lines.length} line(s) against i18n tables`);
-
-        // Pass 1: each line individually
-        for (let i = 0; i < lines.length; i++) {
-            const raw = lines[i].toLowerCase().trim();
-            const result = this._tryMatch(raw);
-            console.log(`MapDetector: line [${i}] "${raw}" → ${result ?? 'NO MATCH'}`);
-            if (result) {
-                console.log(`MapDetector: matched map="${result}"`);
-                return { realm: null, map: result };
-            }
-        }
-
-        // Pass 2: join consecutive lines — catches OCR word-splits like "GRE"+"ENVILLE SQUARE"→"GREENVILLE SQUARE"
-        for (let i = 0; i < lines.length - 1; i++) {
-            for (let len = 2; len <= Math.min(3, lines.length - i); len++) {
-                const chunk = lines.slice(i, i + len).map(l => l.toLowerCase().trim());
-
-                // No separator first: reconstructs a single fragmented word
-                const noSep = chunk.join('');
-                const r1 = this._tryMatch(noSep);
-                if (r1) {
-                    console.log(`MapDetector: lines [${i}..${i+len-1}] concat="" → "${r1}"`);
-                    return { realm: null, map: r1 };
-                }
-
-                // Space separator: catches multi-word labels split across lines
-                const withSep = chunk.join(' ');
-                const r2 = this._tryMatch(withSep);
-                if (r2) {
-                    console.log(`MapDetector: lines [${i}..${i+len-1}] concat=" " → "${r2}"`);
-                    return { realm: null, map: r2 };
-                }
-            }
-        }
-
-        console.log('MapDetector: no map found in lines');
-        return null;
-    }
-
-    /** One detection tick: capture → crop → OCR → match → emit */
-    async _detect() {
-        // Guard: do not start a new tick if the detector was stopped or one is already running
-        if (!this.running) return;
-        
-        if (this._detecting) {
-            console.log('MapDetector: detection already in progress, skipping tick');
-            return;
-        }
-
-        this._detecting = true;
-        console.log('MapDetector: --- detection tick start ---');
-
-        try {
-            let time = Date.now();
-
-            // capture
-            const thumbnail = await this._captureDBD();
-
-            // Re-check after every async suspension so that a stop() call in the meantime
-            // prevents the rest of the pipeline from firing show-map-command.
-            if (!this.running) return;
-
-            if (!thumbnail || thumbnail.length === 0) {
-                console.log('MapDetector: empty capture, skipping tick');
-                return;
-            }
-
-            console.log(`MapDetector: capture took ${Date.now() - time} ms`);
-            time = Date.now();
-
-            // get dimensions for cropping
-            const meta = await sharp(thumbnail).metadata();
-            const width = meta.width;
-            const height = meta.height;
-
-            if (!width || !height) {
-                console.log('MapDetector: invalid image metadata');
-                return;
-            }
-
-            // crop region
-            const croppedBuffer = await sharp(thumbnail)
-                .extract({
-                    left: 0,
-                    top: Math.floor(height * 0.65),
-                    width: Math.floor(width * 0.45),
-                    height: Math.floor(height * 0.30),
-                })
-                .png()
-                .toBuffer();
-
-            if (this.lastCropBuffer?.equals(croppedBuffer)) {
-                console.log('MapDetector: crop unchanged, skipping OCR');
-                return;
-            }
-
-            this.lastCropBuffer = croppedBuffer;
-
-            console.log(`MapDetector: crop + extract took ${Date.now() - time} ms`);
-            time = Date.now();
-
-            // preprocess
-            const imgBuffer = await this._preprocessImage(
-                croppedBuffer,
-                Math.floor(width * 0.45),
-                Math.floor(height * 0.30)
-            );
-            if (!this.running) return;
-
-            console.log(`MapDetector: preprocess took ${Date.now() - time} ms`);
-            time = Date.now();
-
-            // ocr
-            const lines = await this._ocr(imgBuffer);
-            if (!this.running) return;
-
-            console.log(`MapDetector: OCR took ${Date.now() - time} ms`);
-
-            if (!lines.length) {
-                console.log('MapDetector: OCR returned no lines, skipping tick');
-                return;
-            }
-
-            const match = this._matchLines(lines);
-            if (!match) return;
-
-            const detectionKey = match.realm
-                ? `${match.realm}/${match.map}`
-                : match.map;
-
-            if (detectionKey === this.lastDetected) {
-                console.log(`MapDetector: duplicate detection "${detectionKey}", suppressed`);
-                return;
-            }
-
-            this.lastDetected = detectionKey;
-
-            console.log(`MapDetector: matched → ${detectionKey}`);
-            this.mainWindow.send(
-                'show-map-command',
-                detectionKey.replace(/'/g, '').trim()
-            );
-
-            // Oneshot mode: stop after first successful detection
-            if (this.mode === 'oneshot') {
-                console.log('MapDetector: oneshot — stopping after match');
-                this.stop();
-            }
-
-        } catch (err) {
-            console.error('MapDetector::_detect:', err);
-        } finally {
-            this._detecting = false;
-        }
-    }
-
     // ── Public ────────────────────────────────────────────────────────────────
 
     /**
-     * Initialises tesseract workers and begins periodic detection.
-     * Safe to call multiple times; subsequent calls are no-ops.
+     * Ensures the manual/hotkey OCR worker pool exists. Safe to call multiple times.
      */
     async start() {
-        if (this.running) return;
-        this.running = true;
-        this.mode = 'continuous';
-        console.log('MapDetector: starting (continuous)');
-        await this._createWorkers();
-        this._loop();
+        if (this.workers.length === 0) await this._createWorkers();
     }
 
     /**
-     * Runs detection once and auto-stops after the first successful match.
-     * If already running in continuous mode, stops and switches to oneshot.
+     * Runs a single capture → crop → OCR → match → emit pass, for the hotkey/manual-trigger path.
      */
     async detectOnce() {
-        // Already running in oneshot mode — just reset state so the next tick
-        // behaves like a fresh detection (no duplicate suppression, no crop skip).
-        if (this.running && this.mode === 'oneshot') {
-            console.log('MapDetector: oneshot already running, resetting state');
-            this.lastDetected = null;
-            this.lastCropBuffer = null;
-            return;
-        }
-
-        if (this.running) {
-            console.log('MapDetector: stopping continuous mode, switching to oneshot');
-            await this.stop();
-        }
-        this.running = true;
-        this.mode = 'oneshot';
-        console.log('MapDetector: starting (oneshot)');
-        await this._createWorkers();
-        this._loop();
-    }
-
-    async _loop() {
-        try {
-            while (this.running) {
-                await this._detect();
-                await new Promise(r => setTimeout(r, this.intervalMs));
-            }
-        } catch (err) {
-            console.error('MapDetector loop crashed:', err);
-            this.running = false;
-        }
+        if (this.workers.length === 0) await this._createWorkers();
+        const frame = await this._captureDBD();
+        if (!frame) return;
+        const result = await this._recognizeMapText(frame);
+        if (!result) return;
+        const detectionKey = result.realm ? `${result.realm}/${result.map}` : result.map;
+        console.log(`MapDetector: matched -> ${detectionKey}`);
+        this.mainWindow.send('show-map-command', detectionKey.replace(/'/g, '').trim());
     }
 
     /**
-     * Stops the detection loop and releases tesseract workers.
+     * Releases the manual/hotkey tesseract workers.
      */
     async stop() {
-        if (!this.running) return;
-        this.running = false;
-        this.mode = 'continuous';
-        console.log('MapDetector: stopping');
-
-        this.lastDetected = null;
-        this.lastCropBuffer = null;
-        this._detecting = false;
-
         await this._destroyWorkers();
     }
 }

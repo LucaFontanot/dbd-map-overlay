@@ -65,6 +65,10 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
     const mapDetector = new MapDetector(mainWindow, settings);
     mainWindow.mapDetector = mapDetector;
 
+    if (settings.get('mapDetection')) {
+        mapDetector.startAutomatic();
+    }
+
     if (gotLock) {
         app.on('second-instance', (event, argv, workingDirectory) => {
             const args = argv.slice(1);
