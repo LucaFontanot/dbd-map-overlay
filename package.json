@@ -5,6 +5,7 @@
   "main": "index.js",
   "author": "Luca <admin@lucaservers.com>",
   "scripts": {
+    "test": "node --test 'test/**/*.test.js'",
     "start": "electron index.js",
     "prebuild": "bash scripts/prebuild.sh",
     "build": "npm run prebuild && electron-builder -wl",
