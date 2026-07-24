@@ -2,11 +2,19 @@
 
 const sharp = require('sharp');
 
-const ROI_X_FRAC = 0.45;
-const ROI_Y_FRAC = 0.35;
+// Bottom-right corner, where the "CONTINUE" button renders on every post-match
+// page (scoreboard/bloodpoints/grade/level, public and custom alike). Chosen
+// over the page title (top-left, e.g. "SCOREBOARD"/"BLOODPOINTS EARNED") for
+// two reasons found during live testing: (1) the title text animates in over
+// ~1-2s after the panel itself appears, while CONTINUE is already static and
+// present as soon as the panel renders -- detects meaningfully earlier; (2) a
+// small fixed-position ROI is far cheaper to OCR (tens of ms) than the large
+// top-left title region (~800-900ms), directly cutting perceived latency
+// between the match actually ending and the overlay clearing.
+const ROI_X_START_FRAC = 0.75;
+const ROI_Y_START_FRAC = 0.90;
 
-// English-only for v1 -- see "Global Constraints" in the plan for why.
-const ENDGAME_KEYWORDS = ['scoreboard', 'bloodpoints earned', 'survivor grade', 'killer grade', 'level'];
+const ENDGAME_KEYWORD = 'continue';
 
 class EndgameDetector {
     /** @param {import('tesseract.js').Worker} worker already-initialized 'eng' worker */
@@ -20,29 +28,29 @@ class EndgameDetector {
      */
     async isEndgameScreen(pngBuffer) {
         const meta = await sharp(pngBuffer).metadata();
+        const left = Math.floor(meta.width * ROI_X_START_FRAC);
+        const top = Math.floor(meta.height * ROI_Y_START_FRAC);
         const roi = await sharp(pngBuffer)
             .extract({
-                left: 0,
-                top: 0,
-                width: Math.floor(meta.width * ROI_X_FRAC),
-                height: Math.floor(meta.height * ROI_Y_FRAC),
+                left,
+                top,
+                width: meta.width - left,
+                height: meta.height - top,
             })
-            // Use the green channel rather than luminance greyscale: DBD's endgame
-            // titles are sometimes red-on-smoke (e.g. "BLOODPOINTS EARNED"), which
-            // collapses to near-background grey under a standard luminance
-            // greyscale conversion. Red text has a low green component, so the
-            // green channel alone keeps it dark against the lighter smoke backdrop.
-            .extractChannel('green')
-            // The ROI spans a large, unevenly-lit smoke/cloud backdrop; a single
-            // global normalize() washes out text in the darker/brighter corners.
-            // CLAHE (tiled local contrast) keeps text legible across the whole tile.
-            .clahe({ width: 32, height: 32 })
+            // Plain greyscale + hard threshold, not the green-channel/CLAHE combo
+            // this file used to have -- that was tuned for the (now-unused) title
+            // ROI's red-on-smoke text problem, which doesn't apply to this white-
+            // on-dark button. PSM 11 alone missed the button on some pages (one
+            // returned no text at all); threshold-binarizing first fixed it across
+            // every page tested, including the two that PSM 11 alone missed.
+            .greyscale()
+            .threshold(140)
             .png()
             .toBuffer();
 
-        const { data } = await this.worker.recognize(roi, { tessedit_pageseg_mode: '6' });
+        const { data } = await this.worker.recognize(roi, { tessedit_pageseg_mode: '11' });
         const text = (data.text || '').toLowerCase();
-        return ENDGAME_KEYWORDS.some(keyword => text.includes(keyword));
+        return text.includes(ENDGAME_KEYWORD);
     }
 }
 
