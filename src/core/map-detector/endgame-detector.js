@@ -2,15 +2,10 @@
 
 const sharp = require('sharp');
 
-// Bottom-right corner, where the "CONTINUE" button renders on every post-match
-// page (scoreboard/bloodpoints/grade/level, public and custom alike). Chosen
-// over the page title (top-left, e.g. "SCOREBOARD"/"BLOODPOINTS EARNED") for
-// two reasons found during live testing: (1) the title text animates in over
-// ~1-2s after the panel itself appears, while CONTINUE is already static and
-// present as soon as the panel renders -- detects meaningfully earlier; (2) a
-// small fixed-position ROI is far cheaper to OCR (tens of ms) than the large
-// top-left title region (~800-900ms), directly cutting perceived latency
-// between the match actually ending and the overlay clearing.
+// Bottom-right corner, where "CONTINUE" renders on every post-match page. Better
+// than reading the page title: it's there as soon as the panel shows up (the
+// title takes another second or two to animate in), and it's a much smaller
+// region to OCR.
 const ROI_X_START_FRAC = 0.75;
 const ROI_Y_START_FRAC = 0.90;
 
@@ -37,12 +32,7 @@ class EndgameDetector {
                 width: meta.width - left,
                 height: meta.height - top,
             })
-            // Plain greyscale + hard threshold, not the green-channel/CLAHE combo
-            // this file used to have -- that was tuned for the (now-unused) title
-            // ROI's red-on-smoke text problem, which doesn't apply to this white-
-            // on-dark button. PSM 11 alone missed the button on some pages (one
-            // returned no text at all); threshold-binarizing first fixed it across
-            // every page tested, including the two that PSM 11 alone missed.
+            // Need to binarize before OCR, PSM 11 alone misses the button on some pages.
             .greyscale()
             .threshold(140)
             .png()
@@ -54,4 +44,4 @@ class EndgameDetector {
     }
 }
 
-module.exports = { EndgameDetector };
+module.exports = { EndgameDetector, ROI_X_START_FRAC, ROI_Y_START_FRAC };

@@ -38,7 +38,7 @@ const sharp = require('sharp');
 const { Window } = require('node-screenshots');
 const { OcrMatcher } = require('./map-detector/ocr-matcher');
 const { computeFrameStats, isNearBlackFrame, hasFilledProgressBar } = require('./map-detector/screen-state');
-const { EndgameDetector } = require('./map-detector/endgame-detector');
+const { EndgameDetector, ROI_X_START_FRAC: ENDGAME_ROI_X, ROI_Y_START_FRAC: ENDGAME_ROI_Y } = require('./map-detector/endgame-detector');
 const { LobbyClassifier } = require('./map-detector/lobby-classifier');
 const { DetectionStateMachine } = require('./map-detector/detection-state-machine');
 const { preprocessMapCrop } = require('./map-detector/preprocess-map-crop');
@@ -200,8 +200,7 @@ class MapDetector {
         ipcMain.handle('map-detector-start',         () => this.start());
         ipcMain.handle('map-detector-oneshot',       () => this.detectOnce());
         ipcMain.handle('map-detector-stop',          () => this.stop());
-        // Reflects whether the automatic (always-on) DetectionStateMachine loop is
-        // active -- not the manual/hotkey worker pool managed by start()/stop().
+        // This is about the automatic loop, not the manual/hotkey worker pool from start()/stop().
         ipcMain.handle('map-detector-status',        () => !!this._stateMachine);
         ipcMain.handle('map-detector-reload-realms', () => this._loadRealmKeys());
         ipcMain.handle('map-detector-start-automatic', () => this.startAutomatic());
@@ -272,7 +271,10 @@ class MapDetector {
                 if (this.workers.length === 0) await this._createWorkers();
                 return this._recognizeMapText(frame);
             },
-            isEndgameScreen: (frame) => this._endgameDetector.isEndgameScreen(frame),
+            isEndgameScreen: async (frame) => {
+                if (debug) await this._saveDebugEndgameCrop(frame);
+                return this._endgameDetector.isEndgameScreen(frame);
+            },
             onMapDetected: (detectionKey) => {
                 console.log(`MapDetector: matched -> ${detectionKey}`);
                 this.mainWindow.send('show-map-command', detectionKey.replace(/'/g, '').trim());
@@ -286,12 +288,7 @@ class MapDetector {
             idlePollMs: 1500,
             huntPollMs: 350,
             // Public-match loading screens wait for every player (including the killer) to
-            // finish loading, so they can run well past what a solo/custom-match test shows --
-            // live testing hit a real match still on the tip-text screen at 20s, then never
-            // got a chance to read the map/realm title once the reveal transition started
-            // right around 21-22s. Widened with real margin rather than the bare minimum
-            // observed, since a slower lobby is not unusual and the cost of a longer hunt is
-            // just a few more (already cheap relative to always-on OCR) recognition passes.
+            // finish loading, so they can run well past a solo/custom-match's load time.
             huntTimeoutMs: 45000,
             matchPollMs: 2500,
         });
@@ -305,10 +302,8 @@ class MapDetector {
     }
 
     /**
-     * Stops the automatic loop AND tears down the classifier worker, so a later
-     * startAutomatic() rebuilds everything fresh rather than reusing (or leaking)
-     * a stale worker -- this mirrors the memoization guard at the top of
-     * _ensureStateMachine(), which only skips rebuilding while _stateMachine is non-null.
+     * Stops the automatic loop and tears down the classifier worker, so a later
+     * startAutomatic() rebuilds everything fresh rather than reusing (or leaking) it.
      */
     async stopAutomatic() {
         if (this._stateMachine) this._stateMachine.stop();
@@ -345,7 +340,6 @@ class MapDetector {
             );
         });
 
-        
         if (!window) {
             console.log('MapDetector: DBD window not found');
             return null;
@@ -354,7 +348,6 @@ class MapDetector {
         console.log(
             `MapDetector: capturing DBD window "${window.title?.()}" (${window.width()}x${window.height()})`
         );
-
 
         const image = await window.captureImage();
         const buffer = await image.toPng();
@@ -397,12 +390,7 @@ class MapDetector {
         return this.ocrMatcher.matchLines(lines);
     }
 
-    /**
-     * Opt-in only (DEBUG=true), writes to userData -- never process.cwd() -- so this
-     * can't reintroduce the unconditional-debug-write bug that used to live here.
-     * Lets you visually confirm exactly what the map/realm-name crop actually
-     * contains on your screen, e.g. whether the title text is even inside the box.
-     */
+    /** Opt-in only (DEBUG=true). Writes to userData, never process.cwd(). */
     async _saveDebugCrop(croppedBuffer, preprocessedBuffer) {
         try {
             const debugDir = path.join(app.getPath('userData'), 'debug-crops');
@@ -413,6 +401,24 @@ class MapDetector {
             console.log(`MapDetector: [DEBUG] saved crop images to ${debugDir} (${stamp}-*.png)`);
         } catch (err) {
             console.warn('MapDetector: [DEBUG] failed to save debug crop:', err.message);
+        }
+    }
+
+    /** Opt-in only (DEBUG=true). Same as _saveDebugCrop, for the endgame-check ROI. */
+    async _saveDebugEndgameCrop(fullFrameBuffer) {
+        try {
+            const meta = await sharp(fullFrameBuffer).metadata();
+            const left = Math.floor(meta.width * ENDGAME_ROI_X);
+            const top = Math.floor(meta.height * ENDGAME_ROI_Y);
+            const debugDir = path.join(app.getPath('userData'), 'debug-crops');
+            fs.mkdirSync(debugDir, { recursive: true });
+            const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+            await sharp(fullFrameBuffer)
+                .extract({ left, top, width: meta.width - left, height: meta.height - top })
+                .toFile(path.join(debugDir, `${stamp}-endgame-crop.png`));
+            console.log(`MapDetector: [DEBUG] saved endgame-check crop to ${debugDir} (${stamp}-endgame-crop.png)`);
+        } catch (err) {
+            console.warn('MapDetector: [DEBUG] failed to save debug endgame crop:', err.message);
         }
     }
 
