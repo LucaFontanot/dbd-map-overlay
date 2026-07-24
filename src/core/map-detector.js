@@ -366,11 +366,15 @@ class MapDetector {
         const { width, height } = meta;
         if (!width || !height) return null;
 
+        // 85% width: a narrower crop clips long titles that wrap onto a second
+        // line at higher UI Scale settings (e.g. "Raccoon City Police Station"
+        // is one line at 70% but wraps to two at 100%), which starves Tesseract
+        // of the horizontal context it needs to segment both lines correctly.
         const croppedBuffer = await sharp(fullFrameBuffer)
             .extract({
                 left: 0,
                 top: Math.floor(height * 0.65),
-                width: Math.floor(width * 0.45),
+                width: Math.floor(width * 0.85),
                 height: Math.floor(height * 0.30),
             })
             .png()
@@ -378,7 +382,7 @@ class MapDetector {
 
         const imgBuffer = await preprocessMapCrop(
             croppedBuffer,
-            Math.floor(width * 0.45),
+            Math.floor(width * 0.85),
             Math.floor(height * 0.30)
         );
 
