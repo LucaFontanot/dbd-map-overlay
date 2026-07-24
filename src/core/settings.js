@@ -20,6 +20,7 @@ const defaultConfig = {
     mapDetection: false,
     ocrLanguage: 'all',
     preferredCreator: '',
+    detectInCustoms: true,
     hotkeyCheckLobby: 'CommandOrControl+P',
     hotkeyToggleMap: 'CommandOrControl+H',
     hotkeyRotateMap: 'CommandOrControl+R',

@@ -25,16 +25,24 @@ class MainWindow {
             return app.getVersion()
         })
         ipcMain.handle('get-displays', async () => {
-            return screen.getAllDisplays().map((display, index) => ({
-                index,
-                id: display.id,
-                label: display.label || `Display ${index + 1} (${display.bounds.width}x${display.bounds.height})`,
-                bounds: display.bounds
-            }));
+            return screen.getAllDisplays().map((display, index) => {
+                // bounds is logical (DPI-scaled) pixels, not physical ones -- show the
+                // physical resolution so HiDPI displays are actually recognizable in the list.
+                const physicalWidth = Math.round(display.bounds.width * display.scaleFactor);
+                const physicalHeight = Math.round(display.bounds.height * display.scaleFactor);
+                const refreshRate = Math.round(display.displayFrequency);
+                return {
+                    index,
+                    id: display.id,
+                    label: display.label || `Display ${index + 1} (${physicalWidth}x${physicalHeight}${refreshRate ? ` @ ${refreshRate}Hz` : ''})`,
+                    bounds: display.bounds
+                };
+            });
         })
-        ipcMain.on('map-change', async (event, map) => {
-            // Stop detection when map changes (user click, lobby update, etc.)
-            if (this.mapDetector) this.mapDetector.stop();
+        ipcMain.on('map-change', async (event, map, opts = {}) => {
+            // Stop detection when map changes (user click, lobby update, etc.) --
+            // unless the change came from the detector itself, which should keep running.
+            if (!opts.fromDetector && this.mapDetector) this.mapDetector.stop();
 
             if (!map) {
                 overlayWindow.send('map-hide');

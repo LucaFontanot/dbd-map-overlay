@@ -111,6 +111,9 @@ class Images {
                 debugLog("mapCommand::setMap::error", "Failed to set map");
             }
         });
+        ipcRenderer.on('map-detector-clear', () => {
+            this.sendMap("", this.lastMapType || "standard", true, true);
+        });
     }
 
     searchMaps(name = '', creator = '') {
@@ -292,7 +295,7 @@ class Images {
         }
     }
 
-    async sendMap(map, type, api = true) {
+    async sendMap(map, type, api = true, fromDetector = false) {
         if (this.options.setting) {
             $("#unset-pos").click();
         }
@@ -300,7 +303,7 @@ class Images {
         if (type === "") return;
         this.lastMap = map;
         this.lastMapType = type;
-        ipcRenderer.send('map-change', map);
+        ipcRenderer.send('map-change', map, { fromDetector });
         if (api) {
             if (type === "custom") {
                 let data = await ipcRenderer.invoke('read-custom-data', map);
