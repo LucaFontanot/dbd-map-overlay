@@ -63,6 +63,8 @@ class Options {
         const savedCreator = settings.get("preferredCreator") || '';
         $("#preferredCreatorSelect").val(savedCreator);
 
+        $("#detectInCustomsCheck").prop("checked", settings.get("detectInCustoms") !== false);
+
         $("#hiddenCheck").on("input", async function (ev) {
             var input = $(this);
             var val = input.prop('checked');
@@ -114,6 +116,9 @@ class Options {
         $("#preferredCreatorSelect").on("input", async function (ev) {
             await settings.set("preferredCreator", $(this).val());
             await restartDetectionIfRunning();
+        });
+        $("#detectInCustomsCheck").on("input", async function (ev) {
+            await settings.set("detectInCustoms", $(this).prop('checked'));
         });
         $("#sizeRange").on("input", async function (ev) {
             var input = $(this);
