@@ -66,7 +66,7 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
     mainWindow.mapDetector = mapDetector;
 
     if (settings.get('mapDetection')) {
-        mapDetector.startAutomatic();
+        mapDetector.startAutomatic().catch(err => console.error('MapDetector: failed to start automatic detection:', err));
     }
 
     if (gotLock) {

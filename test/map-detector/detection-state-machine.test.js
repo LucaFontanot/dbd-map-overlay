@@ -123,6 +123,67 @@ test('MATCH_ACTIVE polls for the endgame screen and returns to IDLE, firing onMa
     sm.stop();
 });
 
+test('MATCH_ACTIVE detects a fresh loading screen (missed endgame screen) and transitions straight to HUNTING via onMatchEnded', async () => {
+    // computeFrameStats sequencing:
+    //   tick 1        -> near-black + filled bar: enters HUNTING from IDLE.
+    //   ticks 2-3      -> bright: MATCH_ACTIVE steady state, no loading screen yet.
+    //   tick 4 onward -> near-black + filled bar again: the NEXT match's loading
+    //                    screen has appeared, even though isEndgameScreen (below)
+    //                    never fires -- this is the independent escape path.
+    let statsTick = 0;
+    // recognizeMapText: first two calls agree (confirms the initial map, entering
+    // MATCH_ACTIVE); after that, return null so the second HUNTING pass (entered
+    // via the escape path) never reconfirms a map and flips back to MATCH_ACTIVE
+    // before we get a chance to observe the HUNTING state.
+    let mapTick = 0;
+    const { deps, calls } = buildDeps({
+        computeFrameStats: async () => {
+            statsTick++;
+            if (statsTick === 1 || statsTick >= 4) return { mean: 2, darkFrac: 0.95 };
+            return { mean: 100, darkFrac: 0 };
+        },
+        hasFilledProgressBar: async () => true,
+        recognizeMapText: async () => {
+            mapTick++;
+            return mapTick <= 2 ? { realm: null, map: 'Blood Lodge' } : null;
+        },
+        isEndgameScreen: async () => false,
+        huntTimeoutMs: 500,
+        huntPollMs: 10,
+        matchPollMs: 10,
+    });
+    const sm = new DetectionStateMachine(deps);
+    sm.start();
+    await sleep(150);
+    assert.equal(sm.state, 'HUNTING');
+    assert.equal(calls.onMatchEnded.length, 1);
+    sm.stop();
+});
+
+test('_run() survives an uncaught throw from a dependency on one tick and keeps operating afterward', async () => {
+    let captureCalls = 0;
+    const { deps } = buildDeps({
+        captureFrame: async () => {
+            captureCalls++;
+            if (captureCalls === 1) throw new Error('boom: transient capture failure');
+            return Buffer.from('frame');
+        },
+        computeFrameStats: async () => ({ mean: 2, darkFrac: 0.95 }),
+        hasFilledProgressBar: async () => true,
+        recognizeMapText: async () => ({ realm: null, map: 'Blood Lodge' }),
+        idlePollMs: 10,
+        huntPollMs: 10,
+        matchPollMs: 10,
+    });
+    const sm = new DetectionStateMachine(deps);
+    sm.start();
+    await sleep(150);
+    // If the throw killed the loop, state would be frozen at 'IDLE' and _running false.
+    assert.equal(sm.state, 'MATCH_ACTIVE');
+    assert.equal(sm._running, true);
+    sm.stop();
+});
+
 test('detectInCustoms=false skips a custom lobby entirely: HUNTING still runs but onMapDetected never fires and endgame handling is skipped', async () => {
     // First IDLE tick must see a BRIGHT frame so isCustomLobby() actually gets checked
     // and cached (the real _tickIdle only calls isCustomLobby on the non-near-black
