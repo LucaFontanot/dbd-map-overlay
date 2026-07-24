@@ -284,7 +284,14 @@ class MapDetector {
             detectInCustoms: () => this.settings.get('detectInCustoms') !== false,
             idlePollMs: 1500,
             huntPollMs: 350,
-            huntTimeoutMs: 20000,
+            // Public-match loading screens wait for every player (including the killer) to
+            // finish loading, so they can run well past what a solo/custom-match test shows --
+            // live testing hit a real match still on the tip-text screen at 20s, then never
+            // got a chance to read the map/realm title once the reveal transition started
+            // right around 21-22s. Widened with real margin rather than the bare minimum
+            // observed, since a slower lobby is not unusual and the cost of a longer hunt is
+            // just a few more (already cheap relative to always-on OCR) recognition passes.
+            huntTimeoutMs: 45000,
             matchPollMs: 2500,
         });
         return this._stateMachine;
