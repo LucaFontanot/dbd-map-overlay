@@ -36,6 +36,7 @@ const { EndgameDetector, ROI_X_START_FRAC: ENDGAME_ROI_X, ROI_Y_START_FRAC: ENDG
 const { LobbyClassifier } = require('./map-detector/lobby-classifier');
 const { DetectionStateMachine } = require('./map-detector/detection-state-machine');
 const { preprocessMapCrop } = require('./map-detector/preprocess-map-crop');
+const { FALLBACK_REALMS } = require('./map-detector/fallback-realms');
 
 const debug = process.env.DEBUG === 'true';
 
@@ -45,32 +46,6 @@ const LANG_GROUPS = [
     'eng+deu+fra+spa+ita+por+rus+pol+tur', // Group A – Latin + Cyrillic
     'jpn+kor+chi_sim+chi_tra+tha',          // Group B – CJK + Thai
 ];
-
-// Hard-coded realm names (English, lowercase) — used before/if the photo
-// directory cannot be scanned. Add new DLC realms here as they ship.
-const FALLBACK_REALMS = new Set([
-    'autohaven wreckers',
-    'backwater swamp',
-    'coldwind farm',
-    'disturbed ward',
-    'dvarka deepwood',
-    'forsaken boneyard',
-    'gideon meat plant',
-    'grave of glenvale',
-    'haddonfield',
-    'hawkins national laboratory',
-    "léry's memorial institute",
-    "lery's memorial institute",
-    'ormond',
-    'raccoon city',
-    'red forest',
-    'silent hill',
-    'springwood',
-    'the decimated borgo',
-    'the macmillan estate',
-    'withered isle',
-    'yamaoka estate',
-]);
 
 // ─── Class ───────────────────────────────────────────────────────────────────
 
