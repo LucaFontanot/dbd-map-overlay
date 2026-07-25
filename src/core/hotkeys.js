@@ -158,7 +158,7 @@ class Hotkeys {
     }
 
     /**
-     * Register the 4 system hotkeys from settings (with defaults fallback).
+     * Register the 3 system hotkeys from settings (with defaults fallback).
      */
     registerSystemHotkeys() {
         const win = this.mainWindow;
@@ -174,8 +174,7 @@ class Hotkeys {
         const actionToIpc = {
             'check-lobby': 'check-lobby-update',
             'toggle-map': 'toggle-map',
-            'rotate-map': 'rotate-map',
-            'trigger-map-detection': 'trigger-map-detection'
+            'rotate-map': 'rotate-map'
         };
 
         for (const [actionId, accelerator] of Object.entries(systemHotkeys)) {

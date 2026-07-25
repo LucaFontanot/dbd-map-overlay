@@ -14,8 +14,8 @@
  * and stored in <userData>/tessdata.
  *
  * Detection has two independent paths:
- *   - Manual/hotkey: start()/detectOnce()/stop() manage a worker pool used for a
- *     single on-demand recognition pass (see index.html's hotkey trigger).
+ *   - Manual: start()/detectOnce()/stop() manage a worker pool used for a
+ *     single on-demand recognition pass.
  *   - Automatic: startAutomatic()/stopAutomatic() manage an internal, always-on
  *     DetectionStateMachine (IDLE → HUNTING → MATCH_ACTIVE) that stays cheap while
  *     idle and only runs the full OCR pipeline while a match is loading.

@@ -25,8 +25,7 @@ const defaultConfig = {
     detectInCustoms: true,
     hotkeyCheckLobby: 'CommandOrControl+P',
     hotkeyToggleMap: 'CommandOrControl+H',
-    hotkeyRotateMap: 'CommandOrControl+R',
-    hotkeyMapDetection: 'CommandOrControl+Q'
+    hotkeyRotateMap: 'CommandOrControl+R'
 };
 
 class Settings {

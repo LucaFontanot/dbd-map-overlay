@@ -149,16 +149,6 @@ ipcRenderer.on('toggle-map', async (event) => {
 });
 
 /**
- * If shortcut key is pressed, trigger one-shot map detection.
- */
-ipcRenderer.on('trigger-map-detection', async (event) => {
-    const detectionEnabled = settings.get("mapDetection");
-    if (detectionEnabled) {
-        ipcRenderer.invoke('map-detector-oneshot');
-    }
-});
-
-/**
  * If shortcut key is pressed, rotate the current map.
  */
 ipcRenderer.on('rotate-map', async (event) => {
