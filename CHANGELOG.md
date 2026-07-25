@@ -1,3 +1,8 @@
+## 1.6.5
+- Total rewrite of the map detection system thanks to @Juli0q.
+- Added endgame detection to remove the overlay when the game ends.
+- Added support for custom games switch
+
 ## 1.6.4
 - Added system hotkey customize
 

@@ -13,17 +13,11 @@
  * Language packs (~45 MB total, "fast" LSTM model) are downloaded once
  * and stored in <userData>/tessdata.
  *
- * Detection has two independent paths:
- *   - Manual: start()/detectOnce()/stop() manage a worker pool used for a
- *     single on-demand recognition pass.
- *   - Automatic: startAutomatic()/stopAutomatic() manage an internal, always-on
- *     DetectionStateMachine (IDLE → HUNTING → MATCH_ACTIVE) that stays cheap while
- *     idle and only runs the full OCR pipeline while a match is loading.
+ * Detection uses an automatic, always-on DetectionStateMachine
+ * (IDLE → HUNTING → MATCH_ACTIVE) that stays cheap while idle and only runs
+ * the full OCR pipeline while a match is loading.
  *
  * IPC handles exposed to the renderer:
- *   map-detector-start            → start() — creates the manual worker pool
- *   map-detector-oneshot          → detectOnce() — one recognition pass
- *   map-detector-stop             → stop()
  *   map-detector-status           → returns Boolean (is the automatic loop running)
  *   map-detector-reload-realms    → re-scans photo dir for new realm names
  *   map-detector-start-automatic  → startAutomatic()
@@ -150,9 +144,9 @@ class MapDetector {
                     this.reverseI18n.set(englishKey.toLowerCase().trim(), englishKey);
                     // normalized → english  (handles OCR dropping apostrophes/accents)
                     const normLocalized = localizedValue.toLowerCase().trim().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
-                    const normEnglish   = englishKey.toLowerCase().trim().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+                    const normEnglish = englishKey.toLowerCase().trim().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
                     if (normLocalized.length > 2 && !this.normalizedI18n.has(normLocalized)) this.normalizedI18n.set(normLocalized, englishKey);
-                    if (normEnglish.length > 2   && !this.normalizedI18n.has(normEnglish))   this.normalizedI18n.set(normEnglish, englishKey);
+                    if (normEnglish.length > 2 && !this.normalizedI18n.has(normEnglish)) this.normalizedI18n.set(normEnglish, englishKey);
                 }
                 console.log(`MapDetector: [i18n] ${file} → ${entries.length} entries`);
             } catch {
@@ -205,14 +199,10 @@ class MapDetector {
     }
 
     _setupIPC() {
-        ipcMain.handle('map-detector-start',         () => this.start());
-        ipcMain.handle('map-detector-oneshot',       () => this.detectOnce());
-        ipcMain.handle('map-detector-stop',          () => this.stop());
-        // This is about the automatic loop, not the manual/hotkey worker pool from start()/stop().
-        ipcMain.handle('map-detector-status',        () => !!this._stateMachine);
+        ipcMain.handle('map-detector-status', () => !!this._stateMachine);
         ipcMain.handle('map-detector-reload-realms', () => this._loadRealmKeys());
         ipcMain.handle('map-detector-start-automatic', () => this.startAutomatic());
-        ipcMain.handle('map-detector-stop-automatic',  () => this.stopAutomatic());
+        ipcMain.handle('map-detector-stop-automatic', () => this.stopAutomatic());
     }
 
     /**
@@ -233,12 +223,12 @@ class MapDetector {
     /** Creates tesseract.js workers (one per script group, or one if a specific language is set) */
     async _createWorkers() {
         const cachePath = path.join(app.getPath('userData'), 'tessdata');
-        fs.mkdirSync(cachePath, { recursive: true });
+        fs.mkdirSync(cachePath, {recursive: true});
 
         // require.resolve finds the actual installed path in both dev and packaged
         // builds (Electron resolves asarUnpack modules to the real filesystem path).
         const workerPath = path.join(path.dirname(require.resolve('tesseract.js/package.json')), 'src', 'worker-script', 'node', 'index.js');
-        const corePath   = path.join(path.dirname(require.resolve('tesseract.js-core/package.json')), 'tesseract-core-simd-lstm.wasm.js');
+        const corePath = path.join(path.dirname(require.resolve('tesseract.js-core/package.json')), 'tesseract-core-simd-lstm.wasm.js');
 
         const groups = this._resolveOcrGroups();
         console.log(`MapDetector: workerPath: ${workerPath}`);
@@ -248,13 +238,14 @@ class MapDetector {
 
         // OEM 1 = LSTM-only (fastest accurate model)
         this.workers = await Promise.all(
-            groups.map(langs => createWorker(langs, 1, { cachePath, workerPath, corePath }))
+            groups.map(langs => createWorker(langs, 1, {cachePath, workerPath, corePath}))
         );
         console.log('MapDetector: all OCR workers ready');
     }
 
     async _destroyWorkers() {
-        await Promise.all(this.workers.map(w => w.terminate().catch(() => {})));
+        await Promise.all(this.workers.map(w => w.terminate().catch(() => {
+        })));
         this.workers = [];
     }
 
@@ -262,10 +253,10 @@ class MapDetector {
         if (this._stateMachine) return this._stateMachine;
 
         const cachePath = path.join(app.getPath('userData'), 'tessdata');
-        fs.mkdirSync(cachePath, { recursive: true });
+        fs.mkdirSync(cachePath, {recursive: true});
         const workerPath = path.join(path.dirname(require.resolve('tesseract.js/package.json')), 'src', 'worker-script', 'node', 'index.js');
         const corePath = path.join(path.dirname(require.resolve('tesseract.js-core/package.json')), 'tesseract-core-simd-lstm.wasm.js');
-        this._classifierWorker = await createWorker('eng', 1, { cachePath, workerPath, corePath });
+        this._classifierWorker = await createWorker('eng', 1, {cachePath, workerPath, corePath});
         this._endgameDetector = new EndgameDetector(this._classifierWorker, [...this.continueKeywords]);
         this._lobbyClassifier = new LobbyClassifier(this._classifierWorker);
 
@@ -317,7 +308,8 @@ class MapDetector {
         this._endgameDetector = null;
         this._lobbyClassifier = null;
         if (this._classifierWorker) {
-            await this._classifierWorker.terminate().catch(() => {});
+            await this._classifierWorker.terminate().catch(() => {
+            });
             this._classifierWorker = null;
         }
     }
@@ -369,7 +361,7 @@ class MapDetector {
      */
     async _recognizeMapText(fullFrameBuffer) {
         const meta = await sharp(fullFrameBuffer).metadata();
-        const { width, height } = meta;
+        const {width, height} = meta;
         if (!width || !height) return null;
 
         // 85% width: a narrower crop clips long titles that wrap onto a second
@@ -404,7 +396,7 @@ class MapDetector {
     async _saveDebugCrop(croppedBuffer, preprocessedBuffer) {
         try {
             const debugDir = path.join(app.getPath('userData'), 'debug-crops');
-            fs.mkdirSync(debugDir, { recursive: true });
+            fs.mkdirSync(debugDir, {recursive: true});
             const stamp = new Date().toISOString().replace(/[:.]/g, '-');
             await sharp(croppedBuffer).toFile(path.join(debugDir, `${stamp}-crop.png`));
             await sharp(preprocessedBuffer).toFile(path.join(debugDir, `${stamp}-preprocessed.png`));
@@ -421,10 +413,10 @@ class MapDetector {
             const left = Math.floor(meta.width * ENDGAME_ROI_X);
             const top = Math.floor(meta.height * ENDGAME_ROI_Y);
             const debugDir = path.join(app.getPath('userData'), 'debug-crops');
-            fs.mkdirSync(debugDir, { recursive: true });
+            fs.mkdirSync(debugDir, {recursive: true});
             const stamp = new Date().toISOString().replace(/[:.]/g, '-');
             await sharp(fullFrameBuffer)
-                .extract({ left, top, width: meta.width - left, height: meta.height - top })
+                .extract({left, top, width: meta.width - left, height: meta.height - top})
                 .toFile(path.join(debugDir, `${stamp}-endgame-crop.png`));
             console.log(`MapDetector: [DEBUG] saved endgame-check crop to ${debugDir} (${stamp}-endgame-crop.png)`);
         } catch (err) {
@@ -449,7 +441,7 @@ class MapDetector {
         for (let i = 0; i < this.workers.length; i++) {
             let data;
             try {
-                ({ data } = await this.workers[i].recognize(imageBuffer, { tessedit_pageseg_mode: '11' }));
+                ({data} = await this.workers[i].recognize(imageBuffer, {tessedit_pageseg_mode: '11'}));
             } catch (err) {
                 console.warn(`MapDetector: worker[${i}] OCR failed: ${err}`);
                 continue;
@@ -462,7 +454,10 @@ class MapDetector {
             console.log(`MapDetector: worker[${i}] raw lines: ${workerLines.length}, kept: ${kept.length}${kept.length ? ' → ' + kept.join(' | ') : ''}`);
             for (const line of kept) {
                 const key = line.toLowerCase().trim();
-                if (!seen.has(key)) { seen.add(key); lines.push(line); }
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    lines.push(line);
+                }
             }
             if (lines.length > 0) break; // Group A matched — skip Group B
         }
@@ -476,20 +471,6 @@ class MapDetector {
      */
     async start() {
         if (this.workers.length === 0) await this._createWorkers();
-    }
-
-    /**
-     * Runs a single capture → crop → OCR → match → emit pass, for the hotkey/manual-trigger path.
-     */
-    async detectOnce() {
-        if (this.workers.length === 0) await this._createWorkers();
-        const frame = await this._captureDBD();
-        if (!frame) return;
-        const result = await this._recognizeMapText(frame);
-        if (!result) return;
-        const detectionKey = result.realm ? `${result.realm}/${result.map}` : result.map;
-        console.log(`MapDetector: matched -> ${detectionKey}`);
-        this.mainWindow.send('show-map-command', detectionKey.replace(/'/g, '').trim());
     }
 
     /**

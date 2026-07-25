@@ -115,23 +115,45 @@ class Options {
         });
         $("#mapDetectionCheck").on("input", async function (ev) {
             var val = $(this).prop('checked');
-            await settings.set("mapDetection", val);
             if (val) {
+                const ocrLang = settings.get("ocrLanguage") || 'all';
+                if (ocrLang === 'all') {
+                    // Require the user to pick a game language before enabling detection.
+                    // Using all-langs is slow and error-prone — single-language OCR is faster
+                    // and more accurate.
+                    $(this).prop('checked', false);
+                    const modal = new bootstrap.Modal(document.getElementById('languageRequiredModal'));
+                    modal.show();
+                    return;
+                }
+                await settings.set("mapDetection", true);
                 await ipcRenderer.invoke('map-detector-start-automatic');
             } else {
+                await settings.set("mapDetection", false);
                 await ipcRenderer.invoke('map-detector-stop-automatic');
             }
         });
         async function restartDetectionIfRunning() {
             const running = await ipcRenderer.invoke('map-detector-status');
             if (running) {
-                await ipcRenderer.invoke('map-detector-stop');
-                await ipcRenderer.invoke('map-detector-start');
+                await ipcRenderer.invoke('map-detector-stop-automatic');
+                await ipcRenderer.invoke('map-detector-start-automatic');
             }
         }
 
         $("#ocrLanguageSelect").on("input", async function (ev) {
-            await settings.set("ocrLanguage", $(this).val());
+            const lang = $(this).val();
+            await settings.set("ocrLanguage", lang);
+            // If user switches from 'all' to a specific language while mapDetection
+            // is enabled but detection never started (blocked by language check),
+            // start it now.
+            if (lang !== 'all' && settings.get("mapDetection")) {
+                const running = await ipcRenderer.invoke('map-detector-status');
+                if (!running) {
+                    await ipcRenderer.invoke('map-detector-start-automatic');
+                    return;
+                }
+            }
             await restartDetectionIfRunning();
         });
         $("#preferredCreatorSelect").on("input", async function (ev) {
@@ -140,6 +162,17 @@ class Options {
         });
         $("#detectInCustomsCheck").on("input", async function (ev) {
             await settings.set("detectInCustoms", $(this).prop('checked'));
+        });
+        // Language-required dialog: save language, sync the settings-tab select,
+        // enable detection, and close the modal.
+        $("#languageRequiredConfirm").on("click", async function () {
+            const lang = $("#languageRequiredSelect").val();
+            await settings.set("ocrLanguage", lang);
+            $("#ocrLanguageSelect").val(lang);
+            await settings.set("mapDetection", true);
+            $("#mapDetectionCheck").prop('checked', true);
+            await ipcRenderer.invoke('map-detector-start-automatic');
+            bootstrap.Modal.getInstance(document.getElementById('languageRequiredModal')).hide();
         });
         $("#sizeRange").on("input", async function (ev) {
             var input = $(this);
