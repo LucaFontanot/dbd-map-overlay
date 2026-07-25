@@ -104,7 +104,9 @@ class Images {
         })
         ipcRenderer.on('show-map-command', (event, arg) => {
             let mapIamgePath = this.findClosestMapMatch(arg)
-            const response = this.sendMap(mapIamgePath, "standard");
+            // fromDetector -- without it, main takes this for a manual pick and
+            // releases the detector's claim on the overlay right after detection
+            const response = this.sendMap(mapIamgePath, "standard", true, true);
             if (response) {
                 debugLog("mapCommand::setMap::success", "Map set successfully");
             } else {

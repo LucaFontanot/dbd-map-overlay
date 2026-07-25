@@ -243,9 +243,9 @@ class MapDetector {
                 if (this.workers.length === 0) await this._createWorkers();
                 return this._recognizeMapText(frame);
             },
-            isEndgameScreen: async (frame) => {
+            detectEndgame: async (frame) => {
                 if (debug) await this._saveDebugEndgameCrop(frame);
-                return this._endgameDetector.isEndgameScreen(frame);
+                return this._endgameDetector.detectEndgame(frame);
             },
             onMapDetected: (detectionKey) => {
                 console.log(`MapDetector: matched -> ${detectionKey}`);
@@ -449,9 +449,12 @@ class MapDetector {
     }
 
     /**
-     * Releases the manual/hotkey tesseract workers.
+     * Releases the manual/hotkey tesseract workers. Called on every manual map
+     * change, so this is also where the running state machine learns that the
+     * overlay now shows the user's own pick and must survive the match ending.
      */
     async stop() {
+        if (this._stateMachine) this._stateMachine.releaseOverlay();
         await this._destroyWorkers();
     }
 }

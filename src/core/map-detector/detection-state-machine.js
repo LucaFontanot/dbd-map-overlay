@@ -15,9 +15,25 @@ class DetectionStateMachine {
         // Stops the MATCH_ACTIVE escape path (see _runMatchActive) from firing on the
         // tail of the loading screen we just came from.
         this._matchSeenBright = false;
+
+        // A confident endgame read clears the overlay on its own; a low-confidence
+        // one needs a second consecutive positive first -- gameplay pixels in the
+        // CONTINUE corner occasionally OCR as text.
+        this._endgameSeen = false;
+
+        // A match ending may only clear a map the detector itself put up. Without
+        // this, a phantom cycle (false loading-screen positive -> hunt timeout ->
+        // false endgame positive) wipes a map the user picked by hand.
+        this._detectorOwnsOverlay = false;
     }
 
     get state() { return this._state; }
+
+    /** The user set or hid a map themselves -- whatever is on the overlay is
+     *  no longer the detector's to clear when the match ends. */
+    releaseOverlay() {
+        this._detectorOwnsOverlay = false;
+    }
 
     start() {
         if (this._running) return;
@@ -90,7 +106,9 @@ class DetectionStateMachine {
                     if (key === pendingKey) {
                         console.log(`DetectionStateMachine: HUNTING confirmed "${key}" after ${Date.now() - startedAt}ms (2 consecutive matching reads) -> MATCH_ACTIVE`);
                         this.deps.onMapDetected(key);
+                        this._detectorOwnsOverlay = true;
                         this._matchSeenBright = false;
+                        this._endgameSeen = false;
                         this._state = STATE.MATCH_ACTIVE;
                         return;
                     }
@@ -109,8 +127,16 @@ class DetectionStateMachine {
         if (this._running) {
             console.log(`DetectionStateMachine: HUNTING timed out after ${Date.now() - startedAt}ms with no confirmed map -> MATCH_ACTIVE anyway (will keep watching for the match to end)`);
             this._matchSeenBright = false;
+            this._endgameSeen = false;
             this._state = STATE.MATCH_ACTIVE;
         }
+    }
+
+    /** onMatchEnded (and the overlay clear behind it) only fires for a map the
+     *  detector confirmed itself; a hand-picked map survives the match ending. */
+    _endMatch() {
+        if (this._detectorOwnsOverlay) this.deps.onMatchEnded();
+        this._detectorOwnsOverlay = false;
     }
 
     async _runMatchActive() {
@@ -128,19 +154,29 @@ class DetectionStateMachine {
 
         const frame = await this.deps.captureFrame();
         if (frame) {
-            if (await this.deps.isEndgameScreen(frame)) {
-                console.log('DetectionStateMachine: MATCH_ACTIVE -> IDLE (endgame screen detected, clearing overlay)');
-                this.deps.onMatchEnded();
-                this._state = STATE.IDLE;
+            const endgame = await this.deps.detectEndgame(frame);
+            if (endgame.seen) {
+                if (endgame.confident || this._endgameSeen) {
+                    const how = endgame.confident ? 'confident read' : 'confirmed on 2 consecutive reads';
+                    console.log(`DetectionStateMachine: MATCH_ACTIVE -> IDLE (endgame screen ${how}${this._detectorOwnsOverlay ? ', clearing overlay' : ' -- overlay untouched, it is not the detector\'s map'})`);
+                    this._endMatch();
+                    this._state = STATE.IDLE;
+                    return;
+                }
+                // One low-confidence read is only a candidate.
+                console.log('DetectionStateMachine: MATCH_ACTIVE endgame candidate (low-confidence read, needs one more consecutive read to confirm)');
+                this._endgameSeen = true;
+                await sleep(this.deps.matchPollMs);
                 return;
             }
+            this._endgameSeen = false;
 
             // Missed the endgame screen? A fresh loading screen also means the match
             // ended, so jump straight to HUNTING instead of going back through IDLE.
             if (await this.deps.hasFilledProgressBar(frame)) {
                 if (this._matchSeenBright) {
                     console.log('DetectionStateMachine: MATCH_ACTIVE -> HUNTING (missed the endgame screen, but a fresh loading screen appeared -- treating the previous match as over)');
-                    this.deps.onMatchEnded();
+                    this._endMatch();
                     this._state = STATE.HUNTING;
                     return;
                 }

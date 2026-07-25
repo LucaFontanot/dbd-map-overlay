@@ -160,11 +160,12 @@ ipcRenderer.on('rotate-map', async (event) => {
         $("#rotationSelect").val(String(newRotation));
     }
     // Re-send the current map with new rotation, or use cached map if available
+    // Re-applies, not picks: the detector's claim on the overlay must survive
     if (images.lastMap !== "") {
-        images.sendMap(images.lastMap, images.lastMapType);
+        images.sendMap(images.lastMap, images.lastMapType, true, true);
     } else if (images.lastMapCache !== "") {
         // Apply rotation to last cached map if no map is currently displayed
-        images.sendMap(images.lastMapCache, images.lastMapType);
+        images.sendMap(images.lastMapCache, images.lastMapType, true, true);
     }
 });
 

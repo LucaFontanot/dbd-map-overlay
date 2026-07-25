@@ -11,7 +11,7 @@ function buildDeps(overrides = {}) {
         hasFilledProgressBar: async () => false,
         isCustomLobby: async () => false,
         recognizeMapText: async () => null,
-        isEndgameScreen: async () => false,
+        detectEndgame: async () => ({ seen: false, confident: false }),
         onMapDetected: (key) => calls.onMapDetected.push(key),
         onMatchEnded: () => calls.onMatchEnded.push(true),
         detectInCustoms: () => true,
@@ -86,7 +86,7 @@ test('HUNTING with no confirmed map eventually times out into MATCH_ACTIVE witho
 });
 
 test('MATCH_ACTIVE polls for the endgame screen and returns to IDLE, firing onMatchEnded', async () => {
-    // isEndgameScreen fires first in MATCH_ACTIVE and returns before hasFilledProgressBar
+    // detectEndgame fires first in MATCH_ACTIVE and returns before hasFilledProgressBar
     // is ever consulted there, so this only needs to report a bar ONCE (to enter HUNTING
     // the first time) -- if it kept reporting one, the machine would keep re-entering
     // HUNTING/MATCH_ACTIVE forever and there'd be no reliable moment to observe it
@@ -95,12 +95,69 @@ test('MATCH_ACTIVE polls for the endgame screen and returns to IDLE, firing onMa
     const { deps, calls } = buildDeps({
         hasFilledProgressBar: async () => calls_++ === 0,
         recognizeMapText: async () => ({ realm: null, map: 'Blood Lodge' }),
-        isEndgameScreen: async () => true,
+        detectEndgame: async () => ({ seen: true, confident: false }),
         matchPollMs: 10,
     });
     const sm = new DetectionStateMachine(deps);
     sm.start();
     await sleep(100);
+    assert.equal(sm.state, 'IDLE');
+    assert.equal(calls.onMatchEnded.length, 1);
+    sm.stop();
+});
+
+test('a single confident endgame read clears the overlay immediately, no second read needed', async () => {
+    let barTick = 0;
+    let endgameReads = 0;
+    const { deps, calls } = buildDeps({
+        hasFilledProgressBar: async () => barTick++ === 0,
+        recognizeMapText: async () => ({ realm: null, map: 'Blood Lodge' }),
+        detectEndgame: async () => {
+            endgameReads++;
+            return { seen: true, confident: true };
+        },
+    });
+    const sm = new DetectionStateMachine(deps);
+    sm.start();
+    await sleep(100);
+    assert.equal(sm.state, 'IDLE');
+    assert.equal(calls.onMatchEnded.length, 1);
+    assert.equal(endgameReads, 1, 'a confident read must end the match on the spot');
+    sm.stop();
+});
+
+test('a single spurious low-confidence endgame read does not clear the overlay (requires 2 consecutive reads)', async () => {
+    let barTick = 0;
+    let endgameTick = 0;
+    const { deps, calls } = buildDeps({
+        hasFilledProgressBar: async () => barTick++ === 0,
+        recognizeMapText: async () => ({ realm: null, map: 'Blood Lodge' }),
+        // one false positive, then back to gameplay
+        detectEndgame: async () => ({ seen: endgameTick++ === 0, confident: false }),
+    });
+    const sm = new DetectionStateMachine(deps);
+    sm.start();
+    await sleep(120);
+    assert.equal(sm.state, 'MATCH_ACTIVE');
+    assert.deepEqual(calls.onMatchEnded, []);
+    sm.stop();
+});
+
+test('two consecutive low-confidence endgame reads clear the overlay even after an earlier spurious one', async () => {
+    let barTick = 0;
+    let endgameTick = 0;
+    const endgameReads = [true, false, true, true];
+    const { deps, calls } = buildDeps({
+        hasFilledProgressBar: async () => barTick++ === 0,
+        recognizeMapText: async () => ({ realm: null, map: 'Blood Lodge' }),
+        detectEndgame: async () => ({
+            seen: endgameReads[Math.min(endgameTick++, endgameReads.length - 1)],
+            confident: false,
+        }),
+    });
+    const sm = new DetectionStateMachine(deps);
+    sm.start();
+    await sleep(150);
     assert.equal(sm.state, 'IDLE');
     assert.equal(calls.onMatchEnded.length, 1);
     sm.stop();
@@ -112,7 +169,7 @@ test('MATCH_ACTIVE detects a fresh loading screen (missed endgame screen) and tr
     //   ticks 2-3     -> false: MATCH_ACTIVE steady state, no loading screen yet
     //                    (this is what sets _matchSeenBright).
     //   tick 4 onward -> true again: the NEXT match's loading screen has appeared,
-    //                    even though isEndgameScreen (below) never fires -- this
+    //                    even though detectEndgame (below) never fires -- this
     //                    is the independent escape path.
     let barTick = 0;
     // recognizeMapText: first two calls agree (confirms the initial map, entering
@@ -129,7 +186,7 @@ test('MATCH_ACTIVE detects a fresh loading screen (missed endgame screen) and tr
             mapTick++;
             return mapTick <= 2 ? { realm: null, map: 'Blood Lodge' } : null;
         },
-        isEndgameScreen: async () => false,
+        detectEndgame: async () => ({ seen: false, confident: false }),
         huntTimeoutMs: 500,
         huntPollMs: 10,
         matchPollMs: 10,
@@ -165,6 +222,62 @@ test('_run() survives an uncaught throw from a dependency on one tick and keeps 
     sm.stop();
 });
 
+test('a phantom cycle (hunt timeout, then endgame reads) never fires onMatchEnded -- the overlay is not the detector\'s to clear', async () => {
+    let barTick = 0;
+    const { deps, calls } = buildDeps({
+        hasFilledProgressBar: async () => barTick++ === 0,
+        recognizeMapText: async () => null,
+        detectEndgame: async () => ({ seen: true, confident: true }),
+        huntTimeoutMs: 30,
+    });
+    const sm = new DetectionStateMachine(deps);
+    sm.start();
+    await sleep(150);
+    assert.equal(sm.state, 'IDLE', 'the match-ended transition itself still happens');
+    assert.deepEqual(calls.onMapDetected, []);
+    assert.deepEqual(calls.onMatchEnded, [], 'no detector map was showing, so nothing may be cleared');
+    sm.stop();
+});
+
+test('the missed-endgame loading-screen escape also skips onMatchEnded when no map was confirmed', async () => {
+    // bar on tick 1 (enter HUNTING), gone for a few MATCH_ACTIVE ticks (sets
+    // _matchSeenBright), then back -- the escape path fires without a map.
+    let barTick = 0;
+    const { deps, calls } = buildDeps({
+        hasFilledProgressBar: async () => {
+            barTick++;
+            return barTick === 1 || barTick >= 5;
+        },
+        recognizeMapText: async () => null,
+        huntTimeoutMs: 30,
+    });
+    const sm = new DetectionStateMachine(deps);
+    sm.start();
+    await sleep(200);
+    assert.deepEqual(calls.onMatchEnded, []);
+    sm.stop();
+});
+
+test('releaseOverlay() makes a confirmed detection survive the match ending -- the user overrode the map by hand', async () => {
+    let barTick = 0;
+    let endgame = false;
+    const { deps, calls } = buildDeps({
+        hasFilledProgressBar: async () => barTick++ === 0,
+        recognizeMapText: async () => ({ realm: null, map: 'Blood Lodge' }),
+        detectEndgame: async () => ({ seen: endgame, confident: endgame }),
+    });
+    const sm = new DetectionStateMachine(deps);
+    sm.start();
+    await sleep(80);
+    assert.deepEqual(calls.onMapDetected, ['Blood Lodge']);
+    sm.releaseOverlay();
+    endgame = true;
+    await sleep(80);
+    assert.equal(sm.state, 'IDLE');
+    assert.deepEqual(calls.onMatchEnded, [], 'the user\'s manual pick must survive');
+    sm.stop();
+});
+
 test('detectInCustoms=false skips a custom lobby entirely: HUNTING still runs but onMapDetected never fires and endgame handling is skipped', async () => {
     // First IDLE tick must report NO bar so isCustomLobby() actually gets checked and
     // cached (the real _tickIdle only calls isCustomLobby when no bar is seen) -- every
@@ -175,7 +288,7 @@ test('detectInCustoms=false skips a custom lobby entirely: HUNTING still runs bu
         isCustomLobby: async () => true,
         detectInCustoms: () => false,
         recognizeMapText: async () => ({ realm: null, map: 'Blood Lodge' }),
-        isEndgameScreen: async () => true,
+        detectEndgame: async () => ({ seen: true, confident: true }),
     });
     const sm = new DetectionStateMachine(deps);
     sm.start();

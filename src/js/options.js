@@ -17,7 +17,8 @@ class Options {
             if (classInstance.previewActive) {
                 classInstance.sendPreview();
             } else {
-                images.sendMap(images.lastMap, images.lastMapType);
+                // Re-apply, not a pick: the detector's claim on the overlay must survive
+                images.sendMap(images.lastMap, images.lastMapType, true, true);
             }
         };
         if (settings.get("draggable") === true) {
