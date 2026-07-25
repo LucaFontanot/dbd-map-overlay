@@ -3,19 +3,23 @@
 const sharp = require('sharp');
 
 // Roster panel region, narrow enough to skip a stray in-scene player nameplate
-// that can render further left, tall enough to catch every roster row.
+// that can render further left, tall enough to catch every roster row. The
+// roster sits lower when the loadout block above it is fuller (extra currency
+// row, more perks) -- observed bottom edge ~0.39, so 0.45 leaves margin for
+// UI Scale pushing it further still.
 const ROI_X_START_FRAC = 0.85;
-const ROI_Y_END_FRAC = 0.32;
+const ROI_Y_END_FRAC = 0.45;
 
-// PSM 11 throws a bunch of spurious 1-3 char "lines" out of icons/glow in this
-// ROI, so a plain non-empty-line count can't tell public and custom apart. Real
-// name fragments run 7+ chars (Tesseract likes splitting one name across
-// multiple lines), so 6 gives a bit of margin without catching the glyph noise.
-const MIN_LINE_TEXT_LENGTH = 6;
+// Roster rows are the only letter-rich text in this ROI: the currency row is
+// all digits, and the glyph/glow noise PSM 11 invents tops out around 4-5
+// letters spread over punctuation. Counting letters (not raw length) is what
+// keeps "5 13 895" and "ide? :" out while name fragments stay in.
+const MIN_LINE_LETTERS = 6;
 
-// Public lobbies land around 0-1 qualifying lines (just your currency row),
-// custom lobbies around 7 (host + bots, often split by OCR). Split the difference.
-const CUSTOM_LOBBY_MIN_LINES = 4;
+// A custom can't start without a killer and at least one survivor, so by the
+// time a loading screen can follow, the roster always has 2+ name rows. Public
+// screens (lobby, menus, boot, endgame) measure 0-1 letter-rich lines here.
+const CUSTOM_LOBBY_MIN_LINES = 2;
 
 class LobbyClassifier {
     /** @param {import('tesseract.js').Worker} worker already-initialized 'eng' worker */
@@ -52,7 +56,7 @@ class LobbyClassifier {
         const lines = (data.blocks ?? []).flatMap(block =>
             (block.paragraphs ?? []).flatMap(paragraph => paragraph.lines ?? [])
         );
-        const qualifyingLines = lines.filter(l => l.text.trim().length >= MIN_LINE_TEXT_LENGTH);
+        const qualifyingLines = lines.filter(l => (l.text.match(/[a-z]/gi) ?? []).length >= MIN_LINE_LETTERS);
         return qualifyingLines.length >= CUSTOM_LOBBY_MIN_LINES;
     }
 }
