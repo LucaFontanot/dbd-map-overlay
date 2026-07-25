@@ -9,12 +9,19 @@ const sharp = require('sharp');
 const ROI_X_START_FRAC = 0.75;
 const ROI_Y_START_FRAC = 0.90;
 
-const ENDGAME_KEYWORD = 'continue';
-
 class EndgameDetector {
-    /** @param {import('tesseract.js').Worker} worker already-initialized 'eng' worker */
-    constructor(worker) {
+    /**
+     * @param {import('tesseract.js').Worker} worker already-initialized 'eng' worker
+     * @param {string[]} continueKeywords localised "CONTINUE" button texts from i18n
+     */
+    constructor(worker, continueKeywords) {
         this.worker = worker;
+        // Lowercase all keywords so we can do a single .toLowerCase() on the OCR text.
+        // Fall back to 'continue' if i18n hasn't loaded yet (shouldn't happen in practice).
+        this.continueKeywords = (continueKeywords && continueKeywords.length > 0
+            ? continueKeywords
+            : ['continue']
+        ).map(k => k.toLowerCase().trim());
     }
 
     /**
@@ -40,7 +47,7 @@ class EndgameDetector {
 
         const { data } = await this.worker.recognize(roi, { tessedit_pageseg_mode: '11' });
         const text = (data.text || '').toLowerCase();
-        return text.includes(ENDGAME_KEYWORD);
+        return this.continueKeywords.some(keyword => text.includes(keyword));
     }
 }
 

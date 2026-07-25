@@ -104,6 +104,9 @@ class MapDetector {
         /** @type {OcrMatcher|null} built after i18n loads, since it needs reverseI18n/normalizedI18n/realmKeys */
         this.ocrMatcher = null;
 
+        /** Localised "CONTINUE" button texts collected during _loadI18n() */
+        this.continueKeywords = new Set();
+
         /** @type {import('tesseract.js').Worker|null} lightweight, always-'eng', used only by the state machine's cheap classifiers */
         this._classifierWorker = null;
         this._endgameDetector = null;
@@ -136,6 +139,11 @@ class MapDetector {
                 );
                 const entries = Object.entries(data);
                 for (const [englishKey, localizedValue] of entries) {
+                    // Collect BUTTON_Continue translations for endgame detection
+                    if (englishKey === 'BUTTON_Continue') {
+                        this.continueKeywords.add(localizedValue.toLowerCase().trim());
+                        continue;
+                    }
                     // localised → english  (the primary lookup direction)
                     this.reverseI18n.set(localizedValue.toLowerCase().trim(), englishKey);
                     // english → english    (handles EN players with no translation)
@@ -258,7 +266,7 @@ class MapDetector {
         const workerPath = path.join(path.dirname(require.resolve('tesseract.js/package.json')), 'src', 'worker-script', 'node', 'index.js');
         const corePath = path.join(path.dirname(require.resolve('tesseract.js-core/package.json')), 'tesseract-core-simd-lstm.wasm.js');
         this._classifierWorker = await createWorker('eng', 1, { cachePath, workerPath, corePath });
-        this._endgameDetector = new EndgameDetector(this._classifierWorker);
+        this._endgameDetector = new EndgameDetector(this._classifierWorker, [...this.continueKeywords]);
         this._lobbyClassifier = new LobbyClassifier(this._classifierWorker);
 
         this._stateMachine = new DetectionStateMachine({
