@@ -22,12 +22,6 @@ const SYSTEM_HOTKEY_DEFS = {
         defaultAccelerator: 'CommandOrControl+R',
         description: 'Rotate Map by 90 degrees',
         action: 'rotate-map'
-    },
-    'trigger-map-detection': {
-        id: 'trigger-map-detection',
-        defaultAccelerator: 'CommandOrControl+Q',
-        description: 'Trigger auto-detection (OCR scan for current map)',
-        action: 'trigger-map-detection'
     }
 };
 
@@ -38,8 +32,7 @@ const SYSTEM_HOTKEY_DEFS = {
 const ACTION_TO_SETTING_KEY = {
     'check-lobby': 'hotkeyCheckLobby',
     'toggle-map': 'hotkeyToggleMap',
-    'rotate-map': 'hotkeyRotateMap',
-    'trigger-map-detection': 'hotkeyMapDetection'
+    'rotate-map': 'hotkeyRotateMap'
 };
 
 /**

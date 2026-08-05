@@ -160,11 +160,6 @@ class Hotkeys {
         const lobbyAccel = this.systemHotkeys['check-lobby'] || SYSTEM_HOTKEY_DEFS['check-lobby'].defaultAccelerator;
         const $lobbyHint = $('#lobbyHotkeyHint');
         if ($lobbyHint.length) $lobbyHint.text(acceleratorToDisplay(lobbyAccel));
-
-        // Detection toggle hint
-        const detectAccel = this.systemHotkeys['trigger-map-detection'] || SYSTEM_HOTKEY_DEFS['trigger-map-detection'].defaultAccelerator;
-        const $detectHint = $('#detectionHotkeyHint');
-        if ($detectHint.length) $detectHint.text(acceleratorToDisplay(detectAccel));
     }
 
     // ─── System Hotkey Editing ────────────────────────────────

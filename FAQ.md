@@ -18,13 +18,12 @@ As stated in this app ToS, the app uses CloudFlare CSAM detection to block any u
 There will be a manual check of the image, if found to be illegal, the user will be permanently blocked, otherwise you will be unblocked.
 
 ## How does auto-detection work?
-1. Enable the **Auto-detect map** toggle in the settings.
-2. At the start of a match, press **Ctrl+D** (Cmd+D on macOS).
-3. The app takes a screenshot of the Dead by Daylight window and runs OCR on the lower-left area where the map/realm name appears on the loading screen.
-4. Once a map is recognized, the overlay updates automatically and detection stops.
-5. If you're in a lobby and someone else changes the map, detection stops to avoid conflicts.
+1. Enable the **Auto-detect map** toggle in the settings — the detector starts immediately and runs fully hands-free.
+2. When a match loads, the detector automatically recognizes the loading screen's progress bar and begins scanning the realm/map name using OCR.
+3. Once a map is recognized, the overlay updates automatically and the detector switches to a low-cost monitoring mode.
+4. When the match ends (endgame screen detected), the overlay clears and the detector returns to watching for the next loading screen.
 
-**Tip:** Press Ctrl+D again at the start of each match to re-trigger detection. The detector only scans while the loading screen text is visible — it won't interfere with gameplay.
+**No hotkey needed** — just toggle it on and the detector handles everything in the background. It stays cheap while idle (one lightweight check every 1.5 seconds) and only ramps up OCR while a match is actually loading. The detector supports all 15 languages the app ships with; you can limit it to your game language in the Detection settings tab to speed up recognition.
 
 ## Where is the source code of the Server?
 Currently, the source code of the server is not public, but it will be in the future.

@@ -65,6 +65,16 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
     const mapDetector = new MapDetector(mainWindow, settings);
     mainWindow.mapDetector = mapDetector;
 
+    if (settings.get('mapDetection')) {
+        const ocrLang = (settings.get('ocrLanguage') || 'all').trim();
+        if (ocrLang !== 'all') {
+            mapDetector.startAutomatic().catch(err => console.error('MapDetector: failed to start automatic detection:', err));
+        } else {
+            console.log('MapDetector: mapDetection is on but no game language set — skipping auto-start');
+            settings.set('mapDetection', false)
+        }
+    }
+
     if (gotLock) {
         app.on('second-instance', (event, argv, workingDirectory) => {
             const args = argv.slice(1);

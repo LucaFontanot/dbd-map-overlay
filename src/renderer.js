@@ -149,16 +149,6 @@ ipcRenderer.on('toggle-map', async (event) => {
 });
 
 /**
- * If shortcut key is pressed, trigger one-shot map detection.
- */
-ipcRenderer.on('trigger-map-detection', async (event) => {
-    const detectionEnabled = settings.get("mapDetection");
-    if (detectionEnabled) {
-        ipcRenderer.invoke('map-detector-oneshot');
-    }
-});
-
-/**
  * If shortcut key is pressed, rotate the current map.
  */
 ipcRenderer.on('rotate-map', async (event) => {
@@ -166,15 +156,16 @@ ipcRenderer.on('rotate-map', async (event) => {
     const newRotation = (currentRotation + 90) % 360;
     await settings.set("rotation", newRotation);
     // Update UI if available
-    if ($("#rotationRange").length) {
-        $("#rotationRange").val(newRotation);
+    if ($("#rotationSelect").length) {
+        $("#rotationSelect").val(String(newRotation));
     }
     // Re-send the current map with new rotation, or use cached map if available
+    // Re-applies, not picks: the detector's claim on the overlay must survive
     if (images.lastMap !== "") {
-        images.sendMap(images.lastMap, images.lastMapType);
+        images.sendMap(images.lastMap, images.lastMapType, true, true);
     } else if (images.lastMapCache !== "") {
         // Apply rotation to last cached map if no map is currently displayed
-        images.sendMap(images.lastMapCache, images.lastMapType);
+        images.sendMap(images.lastMapCache, images.lastMapType, true, true);
     }
 });
 

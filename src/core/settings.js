@@ -17,13 +17,15 @@ const defaultConfig = {
     monitor: 0,
     overlayX: null,
     overlayY: null,
+    glideX: null,
+    glideY: null,
     mapDetection: false,
     ocrLanguage: 'all',
     preferredCreator: '',
+    detectInCustoms: true,
     hotkeyCheckLobby: 'CommandOrControl+P',
     hotkeyToggleMap: 'CommandOrControl+H',
-    hotkeyRotateMap: 'CommandOrControl+R',
-    hotkeyMapDetection: 'CommandOrControl+Q'
+    hotkeyRotateMap: 'CommandOrControl+R'
 };
 
 class Settings {

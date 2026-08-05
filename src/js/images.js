@@ -104,12 +104,17 @@ class Images {
         })
         ipcRenderer.on('show-map-command', (event, arg) => {
             let mapIamgePath = this.findClosestMapMatch(arg)
-            const response = this.sendMap(mapIamgePath, "standard");
+            // fromDetector -- without it, main takes this for a manual pick and
+            // releases the detector's claim on the overlay right after detection
+            const response = this.sendMap(mapIamgePath, "standard", true, true);
             if (response) {
                 debugLog("mapCommand::setMap::success", "Map set successfully");
             } else {
                 debugLog("mapCommand::setMap::error", "Failed to set map");
             }
+        });
+        ipcRenderer.on('map-detector-clear', () => {
+            this.sendMap("", this.lastMapType || "standard", true, true);
         });
     }
 
@@ -292,7 +297,7 @@ class Images {
         }
     }
 
-    async sendMap(map, type, api = true) {
+    async sendMap(map, type, api = true, fromDetector = false) {
         if (this.options.setting) {
             $("#unset-pos").click();
         }
@@ -300,7 +305,10 @@ class Images {
         if (type === "") return;
         this.lastMap = map;
         this.lastMapType = type;
-        ipcRenderer.send('map-change', map);
+        ipcRenderer.send('map-change', map, { fromDetector });
+        // A map arriving mid-preview (detector, lobby) must not replace the
+        // sample map on screen -- it is recorded above and re-covered here.
+        if (this.options && this.options.previewActive) this.options.sendPreview();
         if (api) {
             if (type === "custom") {
                 let data = await ipcRenderer.invoke('read-custom-data', map);
