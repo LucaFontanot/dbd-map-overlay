@@ -23,7 +23,9 @@ class MainWindow {
             obsWindow.show()
         });
         ipcMain.handle('version', async (event, dir) => {
-            return app.getVersion()
+            // Read this app's package.json — app.getVersion() can pick up
+            // Electron's own version (40.x) when running from `npm start`.
+            return require('../../package.json').version;
         })
         ipcMain.handle('get-displays', async () => {
             return screen.getAllDisplays().map((display, index) => {

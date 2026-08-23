@@ -157,9 +157,14 @@ class Options {
             }
             await restartDetectionIfRunning();
         });
-        $("#preferredCreatorSelect").on("input", async function (ev) {
-            await settings.set("preferredCreator", $(this).val());
-            await restartDetectionIfRunning();
+        $("#preferredCreatorSelect").on("change", async function (ev) {
+            const creator = $(this).val() || '';
+            await settings.set("preferredCreator", creator);
+            $("#creatorSelect").val(creator);
+            images.displayImages($("#searchbar").val());
+            // Do not restart the detector — creator only changes which PNG
+            // is resolved. Remap the live overlay if auto-detect is showing a map.
+            await images.onCreatorLayoutChanged(creator);
         });
         $("#detectInCustomsCheck").on("input", async function (ev) {
             await settings.set("detectInCustoms", $(this).prop('checked'));
@@ -299,6 +304,8 @@ class Options {
         select.empty().append(`<option value="">Any Creator</option>`);
         creators.forEach(c => select.append(`<option value="${c}">${c}</option>`));
         select.val(current || this.settings.get("preferredCreator") || '');
+        const synced = select.val();
+        if (synced) $("#creatorSelect").val(synced);
     }
 }
 

@@ -1,6 +1,7 @@
 const {ipcRenderer} = require("electron");
 const {debugLog} = require("./logger");
 const {GITHUB_ASSETS, ASSETS_REPO} = require("./consts");
+const {logicalMapKeyFromPath, findClosestMapMatch} = require("../core/map-match");
 const axios = require("axios");
 const crypto = require("crypto");
 
@@ -14,6 +15,9 @@ class Images {
         this.lastMap = "";
         this.lastMapCache = "";
         this.lastMapType = "default";
+        // Realm/Map identity of the overlay currently shown (from OCR or path).
+        // Used to swap creator layouts without losing the detected map.
+        this.lastLogicalMapKey = "";
         this.mapDictionary = [];
         this.pathLookup = [];
         this.cacheBlob = {};
@@ -99,10 +103,13 @@ class Images {
         $("#searchbar").on("input", function (ev) {
             thisRef.displayImages($(this).val())
         })
-        $("#creatorSelect").on("input", function (ev) {
-            thisRef.displayImages($("#searchbar").val())
+        $("#creatorSelect").on("change", async function (ev) {
+            const creator = $(this).val();
+            await thisRef.displayImages($("#searchbar").val());
+            await thisRef.onCreatorLayoutChanged(creator);
         })
         ipcRenderer.on('show-map-command', (event, arg) => {
+            this.lastLogicalMapKey = arg;
             let mapIamgePath = this.findClosestMapMatch(arg)
             // fromDetector -- without it, main takes this for a manual pick and
             // releases the detector's claim on the overlay right after detection
@@ -114,6 +121,7 @@ class Images {
             }
         });
         ipcRenderer.on('map-detector-clear', () => {
+            this.lastLogicalMapKey = "";
             this.sendMap("", this.lastMapType || "standard", true, true);
         });
     }
@@ -171,6 +179,8 @@ class Images {
                     $("#creatorSelect").append(`<option value="${creator}">${creator}</option>`);
                 });
                 if (this.options) this.options.populatePreferredCreators(creators);
+                const preferred = this.settings.get('preferredCreator');
+                if (preferred) $("#creatorSelect").val(preferred);
             }
         }catch (e){
             debugLog("images::loadImages::error", e.message);
@@ -209,29 +219,47 @@ class Images {
         return result;
     }
 
-    findClosestMapMatch(mapKey) {
-        const normalizedKey = mapKey.replace(/\\/g, '/').trim().toLowerCase();
-        const preferred = (this.settings.get('preferredCreator') || '').toLowerCase();
+    findClosestMapMatch(mapKey, creatorOverride, opts) {
+        const preferred = creatorOverride !== undefined
+            ? creatorOverride
+            : (this.settings.get('preferredCreator') || '');
+        return findClosestMapMatch(mapKey, this.pathLookup, preferred, opts);
+    }
 
-        const allKeys = Object.keys(this.pathLookup);
+    /**
+     * Swap the overlay to the same realm/map in `creator`'s layout without
+     * stopping the detector. Does not write preferredCreator — the home
+     * dropdown is a per-match overlay pick; Settings owns the saved default.
+     */
+    async onCreatorLayoutChanged(creator) {
+        const chosen = creator || '';
 
-        const exactMatch = key => key.replace(/\.[^.]+$/, '').toLowerCase() === normalizedKey;
-        const partialMatch = key => key.toLowerCase().includes(normalizedKey);
+        if (!chosen) return;
 
-        // Preferred creator — exact then partial
-        if (preferred) {
-            const inPreferred = allKeys.filter(k => k.toLowerCase().startsWith(preferred + '/'));
-            const exact = inPreferred.find(exactMatch);
-            if (exact) return this.pathLookup[exact];
-            const partial = inPreferred.find(partialMatch);
-            if (partial) return this.pathLookup[partial];
+        const identity = this.lastLogicalMapKey
+            || logicalMapKeyFromPath(this.lastMap)
+            || logicalMapKeyFromPath(this.lastMapCache);
+        if (!identity) {
+            debugLog("images::onCreatorLayoutChanged::no-identity", this.lastMap);
+            return;
         }
 
-        // Fallback — all creators
-        const exact = allKeys.find(exactMatch);
-        if (exact) return this.pathLookup[exact];
-        const partial = allKeys.find(partialMatch);
-        return partial ? this.pathLookup[partial] : null;
+        const newPath = this.findClosestMapMatch(identity, chosen, {fallback: false});
+        if (!newPath) {
+            debugLog("images::onCreatorLayoutChanged::no-layout", chosen, identity);
+            return;
+        }
+
+        // Overlay hidden (Ctrl+H): retarget the cache so unhide uses the new layout.
+        if (!this.lastMap) {
+            this.lastMapCache = newPath;
+            return;
+        }
+        if (newPath === this.lastMap) return;
+
+        const type = this.cacheType[newPath] || "standard";
+        debugLog("images::onCreatorLayoutChanged::swap", identity, chosen, newPath);
+        await this.sendMap(newPath, type, true, true);
     }
 
 
@@ -298,10 +326,19 @@ class Images {
     }
 
     async sendMap(map, type, api = true, fromDetector = false) {
-        if (this.options.setting) {
+        if (this.options && this.options.setting) {
             $("#unset-pos").click();
         }
-        if (map !== "") this.lastMapCache = map;
+        if (map !== "") {
+            this.lastMapCache = map;
+            // Detector already stored the English Realm/Map key. Keep it so
+            // later creator swaps match against the canonical name, not an
+            // artist-specific filename (`Coal Tower 1 - Istari`).
+            if (!fromDetector) {
+                const fromPath = logicalMapKeyFromPath(map);
+                if (fromPath) this.lastLogicalMapKey = fromPath;
+            }
+        }
         if (type === "") return;
         this.lastMap = map;
         this.lastMapType = type;

@@ -38,6 +38,7 @@ src/core/tray.js                  → System tray icon and menu.
 src/core/stream-deck.js           → Stream Controller config generator.
 src/core/map-detector.js          → OCR engine: screenshots DBD window, runs
                                    tesseract with multi-language recognition.
+src/core/map-match.js             → Pure Realm/Map → file-path matching (preferred creator).
 src/core/user-data.js             → User photo/custom map storage.
 src/core/utils.js                 → Shared utilities.
 src/renderer.js                   → Main window preload/renderer logic.
@@ -59,6 +60,8 @@ scripts/localization/             → Localization tooling (i18n extraction/merg
 - **IPC**: Main ↔ renderer via `ipcMain.handle`/`ipcMain.on` (main) and `ipcRenderer.invoke`/`ipcRenderer.on` (renderer).
 - **Settings**: Read/write via `Settings` class (electron-store). Keys used across core and renderer; check `src/core/settings.js` and `src/js/settings.js` for defaults.
 - **Map key format**: `Creator/Realm/MapName` (case-insensitive, no extension). Fuzzily matched to `maps/` directory.
+- **Preferred creator**: Settings `preferredCreator` is the saved default auto-detect uses (`src/core/map-match.js`). Home `#creatorSelect` only filters the gallery and remaps the current overlay; it does not write `preferredCreator`. Changing either dropdown mid-match remaps to the same map in that layout and keeps the detector running (`fromDetector: true`).
+- **Map matching**: `findClosestMapMatch` canonicalizes names (accents, apostrophes, leading `The`, ` - Istari`, parenthetical floors, trailing numbers/EU/NA) then scores closest map name; if needed, matches swapped realm/map folders or a unique file in the same realm. Layout swaps pass `{fallback: false}` so another artist's PNG is never substituted. Detector identities are kept as English `Realm/Map` (not the artist filename).
 - **Map change flow**: Renderer picks map → sends `map-change` IPC with base64 or file path → MainWindow reads file, computes size, positions overlay → forwards to overlay/obs windows.
 - **Wayland**: Detected at startup, respawns with `--ozone-platform=x11`.
 - **Single instance**: `app.requestSingleInstanceLock()` — second instance sends args (`show-map=...`) to first via IPC then quits.
@@ -102,4 +105,4 @@ Translation JSON files in `src/i18n/`. Keys are map names (English). UI strings 
 4. **Keep it concise**: One-liners preferred. This file is read by agents, not humans seeking tutorials. No fluff.
 5. **Never remove the self-updating rule**: This clause must survive all edits.
 
-*Last updated: 2026-07-05*
+*Last updated: 2026-08-23*
