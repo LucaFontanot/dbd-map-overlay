@@ -21,6 +21,7 @@ const FALLBACK_REALMS = new Set([
     'raccoon city',
     'red forest',
     'silent hill',
+    'sleepless district',
     'springwood',
     'the decimated borgo',
     'the macmillan estate',

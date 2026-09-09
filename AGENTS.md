@@ -38,6 +38,8 @@ src/core/tray.js                  → System tray icon and menu.
 src/core/stream-deck.js           → Stream Controller config generator.
 src/core/map-detector.js          → OCR engine: screenshots DBD window, runs
                                    tesseract with multi-language recognition.
+src/core/map-detector/realm-catalog.js → Pure: which photo-dir folder names are
+                                   realms (filters map names used as folders).
 src/core/map-match.js             → Pure Realm/Map → file-path matching (preferred creator).
 src/core/user-data.js             → User photo/custom map storage.
 src/core/utils.js                 → Shared utilities.
@@ -60,8 +62,9 @@ scripts/localization/             → Localization tooling (i18n extraction/merg
 - **IPC**: Main ↔ renderer via `ipcMain.handle`/`ipcMain.on` (main) and `ipcRenderer.invoke`/`ipcRenderer.on` (renderer).
 - **Settings**: Read/write via `Settings` class (electron-store). Keys used across core and renderer; check `src/core/settings.js` and `src/js/settings.js` for defaults.
 - **Map key format**: `Creator/Realm/MapName` (case-insensitive, no extension). Fuzzily matched to `maps/` directory.
-- **Preferred creator**: Settings `preferredCreator` is the saved default auto-detect uses (`src/core/map-match.js`). Home `#creatorSelect` only filters the gallery and remaps the current overlay; it does not write `preferredCreator`. Changing either dropdown mid-match remaps to the same map in that layout and keeps the detector running (`fromDetector: true`).
+- **Preferred creator**: Settings `preferredCreator` is the saved default auto-detect uses (`src/core/map-match.js`). Home `#creatorSelect` only filters the gallery and remaps the current overlay; it does not write `preferredCreator`. Changing either dropdown mid-match remaps to the same map in that layout and keeps the detector running (`fromDetector: true`). Auto-detect keeps `findClosestMapMatch` `fallback: true`, so a map the preferred creator lacks locally silently resolves to another artist's PNG; `images.js` logs `show-map-command::creator-fallback` when that happens (usual cause is a stale/incomplete preferred-creator download, not a matcher bug).
 - **Map matching**: `findClosestMapMatch` canonicalizes names (accents, apostrophes, leading `The`, ` - Istari`, parenthetical floors, trailing numbers/EU/NA) then scores closest map name; if needed, matches swapped realm/map folders or a unique file in the same realm. Layout swaps pass `{fallback: false}` so another artist's PNG is never substituted. Detector identities are kept as English `Realm/Map` (not the artist filename).
+- **Realm vs map classification**: `OcrMatcher` reports a name as a map, a realm only as context. What counts as a realm = `FALLBACK_REALMS` (`src/core/map-detector/fallback-realms.js`, the maintained authority — add new DLC realms there, e.g. `sleepless district`) ∪ photo-dir realm folders that are **not** map names (`realm-catalog.js` filters them). Some creators (KaiserAleex, SamoelColt) store the Crotus Prenn Asylum maps under a folder literally named `Disturbed Ward` — a MAP; letting that folder into the realm set makes OcrMatcher classify the loading line as a realm and the map becomes undetectable. Never name a realm folder after a map.
 - **Map change flow**: Renderer picks map → sends `map-change` IPC with base64 or file path → MainWindow reads file, computes size, positions overlay → forwards to overlay/obs windows.
 - **Wayland**: Detected at startup, respawns with `--ozone-platform=x11`.
 - **Single instance**: `app.requestSingleInstanceLock()` — second instance sends args (`show-map=...`) to first via IPC then quits.

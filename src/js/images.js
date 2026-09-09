@@ -111,6 +111,19 @@ class Images {
         ipcRenderer.on('show-map-command', (event, arg) => {
             this.lastLogicalMapKey = arg;
             let mapIamgePath = this.findClosestMapMatch(arg)
+            // A resolved path differing from the preferred creator means the
+            // preferred creator has no local copy of this map, so another
+            // artist's PNG is being substituted. Surfacing it helps distinguish
+            // an out-of-date/incomplete preferred-creator download (the usual
+            // cause) from a real matching bug.
+            const preferredCreator = (this.settings.get('preferredCreator') || '').trim();
+            if (mapIamgePath && preferredCreator) {
+                const resolvedCreator = String(mapIamgePath).replace(/\\/g, '/').split('/')[1];
+                if (resolvedCreator && resolvedCreator.toLowerCase() !== preferredCreator.toLowerCase()) {
+                    debugLog("show-map-command::creator-fallback",
+                        `"${arg}" has no ${preferredCreator} copy locally; showing ${resolvedCreator} (${mapIamgePath})`);
+                }
+            }
             // fromDetector -- without it, main takes this for a manual pick and
             // releases the detector's claim on the overlay right after detection
             const response = this.sendMap(mapIamgePath, "standard", true, true);

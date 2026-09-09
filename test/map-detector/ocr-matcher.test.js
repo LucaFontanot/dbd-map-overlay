@@ -78,3 +78,59 @@ test('Disturbed Ward resolves as the map, Crotus Prenn Asylum as its realm (regr
         { realm: null, map: 'Disturbed Ward' }
     );
 });
+
+// Mirrors MapDetector._loadRealmKeys: FALLBACK_REALMS augmented with each
+// creator's realm folders, minus folder names that collide with a shipped map
+// name (KaiserAleex/SamoelColt store Crotus Prenn Asylum maps under a folder
+// literally named "Disturbed Ward").
+const fs = require('node:fs');
+const path = require('node:path');
+const { computeMapNameFolds, isRealRealmFolder } = require('../../src/core/map-detector/realm-catalog');
+
+function buildAugmentedMatcher(creatorNames) {
+    const en2 = require('../../src/i18n/en.json');
+    const reverseI18n = new Map();
+    const normalizedI18n = new Map();
+    for (const [englishKey, localizedValue] of Object.entries(en2)) {
+        reverseI18n.set(localizedValue.toLowerCase().trim(), englishKey);
+        reverseI18n.set(englishKey.toLowerCase().trim(), englishKey);
+        const norm = englishKey.toLowerCase().trim().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+        if (norm.length > 2 && !normalizedI18n.has(norm)) normalizedI18n.set(norm, englishKey);
+    }
+    const realmKeys = new Set(FALLBACK_REALMS);
+    const mapNameFolds = computeMapNameFolds(Object.keys(en2), FALLBACK_REALMS);
+    const root = path.join(__dirname, '..', '..', 'maps');
+    for (const creator of creatorNames) {
+        const cdir = path.join(root, creator);
+        if (!fs.existsSync(cdir)) continue;
+        for (const rl of fs.readdirSync(cdir)) {
+            if (!fs.statSync(path.join(cdir, rl)).isDirectory()) continue;
+            if (isRealRealmFolder(rl, mapNameFolds)) realmKeys.add(rl.toLowerCase());
+        }
+    }
+    return new OcrMatcher({ reverseI18n, normalizedI18n, realmKeys });
+}
+
+test('folder-augmented realmKeys never misclassify map "Disturbed Ward" as a realm (regression: creator folder pollution)', () => {
+    // KaiserAleex ships a "Disturbed Ward" folder -> without the guard this
+    // puts the map name into realmKeys and the loading screen never resolves.
+    const matcher = buildAugmentedMatcher(['Hens333', 'KaiserAleex']);
+    assert.deepEqual(
+        matcher.matchLines(['CROTUS PRENN ASYLUM', 'DISTURBED WARD']),
+        { realm: 'Crotus Prenn Asylum', map: 'Disturbed Ward' }
+    );
+    assert.deepEqual(
+        matcher.matchLines(['DISTURBED WARD']),
+        { realm: null, map: 'Disturbed Ward' }
+    );
+});
+
+test('Sleepless District is a realm, not a map, in a folder-augmented install (regression: real realm absent from FALLBACK_REALMS)', () => {
+    const matcher = buildAugmentedMatcher(['KaiserAleex', 'SamoelColt', 'Hens333']);
+    // Loading screen for Trickster's Delusion (realm Sleepless District):
+    // the realm line must be captured, not swallowed as a map name.
+    assert.deepEqual(
+        matcher.matchLines(['SLEEPLESS DISTRICT', "TRICKSTER'S DELUSION"]),
+        { realm: 'Sleepless District', map: "Trickster's Delusion" }
+    );
+});

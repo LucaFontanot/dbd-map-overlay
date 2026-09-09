@@ -37,6 +37,7 @@ const { LobbyClassifier } = require('./map-detector/lobby-classifier');
 const { DetectionStateMachine } = require('./map-detector/detection-state-machine');
 const { preprocessMapCrop } = require('./map-detector/preprocess-map-crop');
 const { FALLBACK_REALMS } = require('./map-detector/fallback-realms');
+const { computeMapNameFolds, isRealRealmFolder } = require('./map-detector/realm-catalog');
 
 const debug = process.env.DEBUG === 'true';
 
@@ -101,6 +102,9 @@ class MapDetector {
             return;
         }
 
+        // Every English realm/map key, used to tell genuine realm folder names
+        // from map names some creators reuse as folders (see realm-catalog.js).
+        this.englishKeys = new Set();
         for (const file of files) {
             try {
                 const data = JSON.parse(
@@ -108,6 +112,7 @@ class MapDetector {
                 );
                 const entries = Object.entries(data);
                 for (const [englishKey, localizedValue] of entries) {
+                    this.englishKeys.add(englishKey);
                     // Collect BUTTON_Continue translations for endgame detection
                     if (englishKey === 'BUTTON_Continue') {
                         this.continueKeywords.add(localizedValue.toLowerCase().trim());
@@ -148,6 +153,13 @@ class MapDetector {
         for (const r of FALLBACK_REALMS) this.realmKeys.add(r);
         console.log(`MapDetector: loaded ${FALLBACK_REALMS.size} fallback realm(s)`);
 
+        // Skip folder names that collide with a shipped MAP name. Some creators
+        // (KaiserAleex, SamoelColt) store the Crotus Prenn Asylum maps under a
+        // folder literally called "Disturbed Ward" — that is a map, and letting
+        // it into realmKeys makes OcrMatcher classify the map line as a realm,
+        // silently killing detection of that map (see realm-catalog.js).
+        const mapNameFolds = computeMapNameFolds(this.englishKeys || [], FALLBACK_REALMS);
+
         const photoDir = path.join(app.getPath('userData'), 'photo');
         console.log(`MapDetector: scanning photo dir for realms: ${photoDir}`);
         try {
@@ -161,6 +173,10 @@ class MapDetector {
                 if (!fs.statSync(creatorPath).isDirectory()) continue;
                 for (const realm of fs.readdirSync(creatorPath)) {
                     if (fs.statSync(path.join(creatorPath, realm)).isDirectory()) {
+                        if (!isRealRealmFolder(realm, mapNameFolds)) {
+                            console.log(`MapDetector: ignoring realm folder "${realm}" (name is a map, not a realm)`);
+                            continue;
+                        }
                         this.realmKeys.add(realm.toLowerCase());
                         added++;
                     }
