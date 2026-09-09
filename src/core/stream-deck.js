@@ -15,19 +15,10 @@ class StreamDeck {
         ipcMain.handle('streamdeck:saveConfig', async (event, filePath, config) => {
             try {
                 const dir = path.dirname(filePath);
-                await fs.mkdir(dir, { recursive: true }, (err) => {
-                    if (err) {
-                        console.error("Failed to create directory:", err);
-                        return;
-                    }
-                });
-
-                await fs.writeFile(filePath, JSON.stringify(config, null, 2), (err) => {
-                    if (err) {
-                        console.error("Failed to create directory:", err);
-                        return;
-                    }
-                });
+                // fs is the promises API — callbacks are ignored and the error
+                // branches were dead. Errors now surface through the catch below.
+                await fs.mkdir(dir, { recursive: true });
+                await fs.writeFile(filePath, JSON.stringify(config, null, 2));
 
                 return { success: true };
             } catch (error) {

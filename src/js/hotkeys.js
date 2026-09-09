@@ -1,6 +1,7 @@
 const { debugLog } = require("./logger");
 const { ipcRenderer } = require('electron');
 const { acceleratorToDisplay, displayToAccelerator, SYSTEM_HOTKEY_DEFS } = require("../shared/hotkeys-constants");
+const { parseMapPath } = require("../core/map-match");
 
 class Hotkeys {
 
@@ -29,13 +30,9 @@ class Hotkeys {
     }
 
     splitCreatorAndMap(mapPath) {
-        const segments = mapPath.split('/').filter(Boolean);
-
-        const creator = segments[0] ?? '';
-        const last    = segments.at(-1) ?? '';
-        const map     = last.replace(/\.[^.]+$/, '');
-
-        return { creator, map };
+        // Creator/Realm/Map parsing lives in map-match.js (single source).
+        const parsed = parseMapPath(mapPath) || {};
+        return { creator: parsed.creator || '', map: parsed.base || '' };
     }
 
     // ─── Custom Map Hotkey Table ───────────────────────────────
@@ -232,10 +229,6 @@ class Hotkeys {
             mapkey: $('#selectMap').val()
         };
         ipcRenderer.send('save-hotkeys', settings);
-    }
-
-    registerHotkeys(hotkeys) {
-        ipcRenderer.send('register-hotkeys', hotkeys);
     }
 
     // ─── Load Everything ──────────────────────────────────────

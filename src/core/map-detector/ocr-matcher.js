@@ -1,5 +1,9 @@
 'use strict';
 
+// Edit distance is defined once in map-match.js (the single source of map-name
+// matching helpers) and reused here for fuzzy OCR-line matching.
+const { levenshtein } = require('../map-match');
+
 class OcrMatcher {
     /**
      * @param {{reverseI18n: Map<string,string>, normalizedI18n: Map<string,string>, realmKeys: Set<string>}} deps
@@ -10,22 +14,11 @@ class OcrMatcher {
         this.realmKeys = realmKeys;
     }
 
-    _levenshtein(a, b) {
-        const m = a.length, n = b.length;
-        const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
-        for (let j = 0; j <= n; j++) dp[0][j] = j;
-        for (let i = 1; i <= m; i++)
-            for (let j = 1; j <= n; j++)
-                dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1]
-                    : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
-        return dp[m][n];
-    }
-
     _fuzzyMatchRealmKey(raw) {
         const MAX_DIST = Math.max(2, Math.floor(raw.length * 0.18));
         let best = null, bestDist = MAX_DIST + 1;
         for (const realmKey of this.realmKeys) {
-            const dist = this._levenshtein(raw, realmKey);
+            const dist = levenshtein(raw, realmKey);
             if (dist < bestDist) { bestDist = dist; best = realmKey; }
         }
         return bestDist <= MAX_DIST ? best : null;
@@ -36,7 +29,7 @@ class OcrMatcher {
         let best = null, bestDist = MAX_DIST + 1;
         for (const [key, value] of this.normalizedI18n) {
             if (Math.abs(key.length - raw.length) > MAX_DIST) continue;
-            const dist = this._levenshtein(raw, key);
+            const dist = levenshtein(raw, key);
             if (dist < bestDist) { bestDist = dist; best = value; }
         }
         return bestDist <= MAX_DIST ? best : null;

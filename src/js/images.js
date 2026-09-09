@@ -1,9 +1,44 @@
 const {ipcRenderer} = require("electron");
 const {debugLog} = require("./logger");
 const {GITHUB_ASSETS, ASSETS_REPO} = require("./consts");
-const {logicalMapKeyFromPath, findClosestMapMatch} = require("../core/map-match");
+const {logicalMapKeyFromPath, findClosestMapMatch, parseMapPath, foldName, levenshtein} = require("../core/map-match");
 const axios = require("axios");
 const crypto = require("crypto");
+
+function foldTokens(str) {
+    return foldName(str).split(' ').filter(Boolean);
+}
+
+/**
+ * Nearest-string scoring for the home gallery search. Every query token must
+ * find an approximate match in the candidate's map+realm name tokens; the
+ * returned penalty grows with edit distance. Built on map-match's shared
+ * foldName + levenshtein (the app's single source of fuzzy name matching).
+ * @returns {number|null} penalty (0 = exact) or null when too far / too short.
+ */
+function fuzzyTokenScore(queryTokens, candidateTokens) {
+    let total = 0;
+    for (const qt of queryTokens) {
+        if (qt.length < 2) return null; // a 1-char token is too weak for fuzzy
+        let best = Infinity;
+        for (const ct of candidateTokens) {
+            let d;
+            if (ct === qt) {
+                d = 0;
+            } else if (ct.length >= 3 && (ct.startsWith(qt) || (qt.length >= 3 && qt.startsWith(ct)))) {
+                d = 1; // prefix match (partial word)
+            } else {
+                const allowed = Math.max(2, Math.floor(Math.max(qt.length, ct.length) * 0.3));
+                d = levenshtein(qt, ct);
+                if (d > allowed) continue;
+            }
+            if (d < best) best = d;
+        }
+        if (!Number.isFinite(best)) return null;
+        total += best;
+    }
+    return total;
+}
 
 class Images {
 
@@ -118,7 +153,7 @@ class Images {
             // cause) from a real matching bug.
             const preferredCreator = (this.settings.get('preferredCreator') || '').trim();
             if (mapIamgePath && preferredCreator) {
-                const resolvedCreator = String(mapIamgePath).replace(/\\/g, '/').split('/')[1];
+                const resolvedCreator = parseMapPath(mapIamgePath)?.creator || '';
                 if (resolvedCreator && resolvedCreator.toLowerCase() !== preferredCreator.toLowerCase()) {
                     debugLog("show-map-command::creator-fallback",
                         `"${arg}" has no ${preferredCreator} copy locally; showing ${resolvedCreator} (${mapIamgePath})`);
@@ -141,35 +176,52 @@ class Images {
 
     searchMaps(name = '', creator = '') {
         debugLog("images::searchMaps::called", name, creator);
-        const results = [];
-
-        const nameLower = name.toLowerCase();
         const creatorLower = creator.toLowerCase();
+
+        // Substring hits (legacy behaviour) come first, then fuzzy "did you mean"
+        // results sorted by how close each map's name is to the query.
+        const queryTokens = foldTokens(name);
+        const fuzzy = queryTokens.length > 0;
 
         const mapDictionary = this.mapDictionary;
         const pathLookup = this.pathLookup;
+        const matches = [];
 
         Object.entries(mapDictionary).forEach(([cr, realms]) => {
             if (creator && !cr.toLowerCase().includes(creatorLower)) return;
 
             Object.entries(realms).forEach(([rl, maps]) => {
                 maps.forEach(mapName => {
-                    const combined = `${mapName} ${rl}`.toLowerCase();
-
-                    if (name && !combined.includes(nameLower)) return;
-
                     const key = `${cr}/${rl}/${mapName}`;
-                    results.push({
-                        creator: cr,
-                        realm: rl,
-                        name: mapName,
-                        path: pathLookup[key] || null,
+                    const direct = !fuzzy || foldName(`${mapName} ${rl}`).includes(foldName(name));
+
+                    let score = null;
+                    if (!direct) {
+                        const candidateTokens = [
+                            ...foldTokens(parseMapPath(mapName)?.base || mapName),
+                            ...foldTokens(rl),
+                        ];
+                        score = fuzzyTokenScore(queryTokens, candidateTokens);
+                    }
+                    if (!direct && score === null) return;
+
+                    matches.push({
+                        item: {
+                            creator: cr,
+                            realm: rl,
+                            name: mapName,
+                            path: pathLookup[key] || null,
+                        },
+                        // Substring hits rank above fuzzy ones (0); stable sort keeps
+                        // their original insertion order among equal scores.
+                        score: direct ? 0 : score,
                     });
                 });
             });
         });
 
-        return results;
+        if (!fuzzy) return matches.map(m => m.item);
+        return matches.sort((a, b) => a.score - b.score).map(m => m.item);
     }
 
     async loadImages(){
@@ -207,19 +259,11 @@ class Images {
         const result = {};
         const pathLookup = this.pathLookup
         paths.forEach(path => {
-            const parts = path.replace(/\\/g,"/").split("/");
-
-            let creator, realm, mapName;
-            if (parts.length < 4) {
-                // If the path does not have enough parts, we assume it's a custom map
-                creator = "Custom";
-                realm = "Custom";
-                mapName = parts[1];
-            } else {
-                creator = parts[1];
-                realm = parts[2];
-                mapName = parts[3];
-            }
+            // Creator/Realm/Map parsing lives in map-match.js (single source).
+            // Paths with < 3 segments are custom maps → bucketed under Custom.
+            const parsed = parseMapPath(path);
+            if (!parsed) return;
+            const {creator, realm, map: mapName} = parsed;
 
             if (!result[creator]) result[creator] = {};
             if (!result[creator][realm]) result[creator][realm] = [];

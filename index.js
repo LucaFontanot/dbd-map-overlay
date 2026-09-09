@@ -13,6 +13,11 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
         stdio: 'inherit'
     });
 
+    child.on('error', (err) => {
+        console.error('Wayland respawn failed:', err);
+        process.exit(1);
+    });
+
     child.on('exit', (code) => {
         process.exit(code);
     });

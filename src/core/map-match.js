@@ -22,6 +22,29 @@ function fileBaseName(key) {
     return stripExtension(String(key).replace(/\\/g, '/').split('/').pop());
 }
 
+/**
+ * Split any on-disk/user-data path or `Creator/Realm/Map` key into its logical
+ * parts. This is the single source of Creator/Realm/Map path parsing shared by
+ * the renderer (images.js catalog build, hotkeys.js labels) and the main
+ * process. Accepts leading-slash paths (`/Creator/Realm/Map.png`), bare keys
+ * (`Creator/Realm/Map.png`), Windows backslashes, and flat custom maps
+ * (`/My Map.png`), which have no creator/realm and get the `Custom` label so
+ * they sort into their own gallery bucket.
+ * @param {string} filePath
+ * @returns {{creator: string, realm: string, map: string, base: string}|null}
+ *   `map` keeps the file extension (`Coal Tower.png`); `base` strips it.
+ */
+function parseMapPath(filePath) {
+    const parts = String(filePath || '').replace(/\\/g, '/').split('/').filter(Boolean);
+    if (!parts.length) return null;
+    const map = parts[parts.length - 1];
+    const base = stripExtension(map);
+    if (parts.length >= 3) {
+        return {creator: parts[0], realm: parts[parts.length - 2], map, base};
+    }
+    return {creator: 'Custom', realm: 'Custom', map, base};
+}
+
 function foldName(s) {
     return String(s || '')
         .normalize('NFD')
@@ -273,4 +296,10 @@ function findClosestMapMatch(mapKey, pathLookup, preferredCreator, opts = {}) {
     return search(allKeys);
 }
 
-module.exports = {logicalMapKeyFromPath, findClosestMapMatch};
+module.exports = {
+    foldName,
+    levenshtein,
+    parseMapPath,
+    logicalMapKeyFromPath,
+    findClosestMapMatch,
+};

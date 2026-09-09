@@ -1,6 +1,6 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const {logicalMapKeyFromPath, findClosestMapMatch} = require('../src/core/map-match');
+const {logicalMapKeyFromPath, findClosestMapMatch, parseMapPath} = require('../src/core/map-match');
 
 const lookup = {
     'SamoelColt/The Macmillan Estate/Coal Tower.png': '/SamoelColt/The Macmillan Estate/Coal Tower.png',
@@ -210,4 +210,36 @@ test('closest name finds a unique realm file when the map is named after the rea
         findClosestMapMatch('Raccoon City/Raccoon City East (Lower Floor)', catalogLookup, 'Hens333', {fallback: false}),
         '/Hens333/Raccoon City/Raccoon City Police Station East Wing.webp'
     );
+});
+
+// parseMapPath — shared Creator/Realm/Map parser (images.js + hotkeys.js)
+test('parseMapPath splits a leading-slash Creator/Realm/Map path', () => {
+    assert.deepEqual(
+        parseMapPath('/SamoelColt/The Macmillan Estate/Coal Tower.png'),
+        {creator: 'SamoelColt', realm: 'The Macmillan Estate', map: 'Coal Tower.png', base: 'Coal Tower'}
+    );
+});
+
+test('parseMapPath splits Windows backslash paths and bare keys', () => {
+    assert.deepEqual(
+        parseMapPath('\\EagerFace\\The Macmillan Estate\\Coal Tower.png'),
+        {creator: 'EagerFace', realm: 'The Macmillan Estate', map: 'Coal Tower.png', base: 'Coal Tower'}
+    );
+    assert.deepEqual(
+        parseMapPath('EagerFace/The Macmillan Estate/Coal Tower.png'),
+        {creator: 'EagerFace', realm: 'The Macmillan Estate', map: 'Coal Tower.png', base: 'Coal Tower'}
+    );
+});
+
+test('parseMapPath buckets flat custom files under Custom', () => {
+    assert.deepEqual(
+        parseMapPath('/My Custom Map.png'),
+        {creator: 'Custom', realm: 'Custom', map: 'My Custom Map.png', base: 'My Custom Map'}
+    );
+});
+
+test('parseMapPath returns null for empty input', () => {
+    assert.equal(parseMapPath(''), null);
+    assert.equal(parseMapPath(null), null);
+    assert.equal(parseMapPath(undefined), null);
 });

@@ -17,16 +17,9 @@
  * added there (see fallback-realms.js) to keep them discoverable from folders.
  */
 
-function foldName(s) {
-    return String(s || '')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .replace(/[''`´’]/g, '')
-        .replace(/[^a-z0-9]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
+// Name folding is defined once in map-match.js (the single source of map-name
+// canonicalisation) and reused here; re-exported so callers/tests keep one import.
+const { foldName } = require('../map-match');
 
 /**
  * Folds of every i18n key that is a MAP (not a known realm). Used to reject
