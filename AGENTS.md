@@ -66,6 +66,8 @@ scripts/localization/             → Localization tooling (i18n extraction/merg
 - **Wayland**: Detected at startup, respawns with `--ozone-platform=x11`.
 - **Single instance**: `app.requestSingleInstanceLock()` — second instance sends args (`show-map=...`) to first via IPC then quits.
 - **Versioning**: `package.json` version. electron-updater reads GitHub Releases.
+- **In-app docs**: FAQ/CHANGELOG/CREDITS/Privacy modals fetch Markdown at runtime from GitHub raw master (`src/js/consts.js` → `raw.githubusercontent.com/LucaFontanot/dbd-map-overlay/master/`). Doc edits only reach users once committed and **pushed** to upstream master.
+- **Auto-detect is toggle-only** (v1.6.5+): no hotkey triggers it. The old per-match Ctrl+D one-shot was removed in `d9ccb0e`; no Ctrl+Q exists. Detection = `MapDetector` state machine (`src/core/map-detector/`), started by the "Auto-detect map" switch in the bottom bar.
 
 ## Commands
 
@@ -105,4 +107,4 @@ Translation JSON files in `src/i18n/`. Keys are map names (English). UI strings 
 4. **Keep it concise**: One-liners preferred. This file is read by agents, not humans seeking tutorials. No fluff.
 5. **Never remove the self-updating rule**: This clause must survive all edits.
 
-*Last updated: 2026-08-23*
+*Last updated: 2026-09-09*

@@ -23,7 +23,9 @@ There will be a manual check of the image, if found to be illegal, the user will
 3. Once a map is recognized, the overlay updates automatically and the detector switches to a low-cost monitoring mode.
 4. When the match ends (endgame screen detected), the overlay clears and the detector returns to watching for the next loading screen.
 
-**No hotkey needed** — just toggle it on and the detector handles everything in the background. It stays cheap while idle (one lightweight check every 1.5 seconds) and only ramps up OCR while a match is actually loading. The detector supports all 15 languages the app ships with; you can limit it to your game language in the Detection settings tab to speed up recognition.
+No key press is needed to start or repeat detection — while the toggle is on the detector runs hands-free. Older versions asked you to press a hotkey (Ctrl+D) at the start of each match; that was removed in v1.6.5. Auto-detect now re-triggers itself automatically on every loading screen, including custom lobbies (unless "Detect maps in Custom Matches" is turned off).
+
+It stays cheap while idle (one lightweight check every 1.5 seconds) and only ramps up full OCR while a match is actually loading. The detector recognizes the map in whatever language your game is set to — it ships with all 15 languages the app supports; limiting OCR to your game language in the Detection settings tab speeds up recognition. If it ever shows the wrong layout/artist for a map, pick your preferred creator in Settings → Detection and it remaps the current overlay.
 
 ## Where is the source code of the Server?
 Currently, the source code of the server is not public, but it will be in the future.
