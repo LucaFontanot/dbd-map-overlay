@@ -24,6 +24,17 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
 } else {
 
     const {app, BrowserWindow, dialog} = require('electron')
+
+    // ONNX/Chromium route GLib messages through LOG(ERROR) (browser_main_loop.cc),
+    // so every libvips call from sharp dumps pages of
+    // "GLib-GObject: g_object_ref: assertion 'G_IS_OBJECT (object)' failed"
+    // into the console. FATAL-only logging silences them. Linux-only: GLib is the
+    // only handler that reroutes native-library chatter, and Windows keeps its
+    // Chromium error log. Must be set before `app.whenReady()`.
+    if (process.platform === 'linux') {
+        app.commandLine.appendSwitch('log-level', '3')
+    }
+
     const ObsWindow = require("./src/core/obs-window");
     const MainWindow = require("./src/core/main-window");
     const OverlayWindow = require("./src/core/overlay-window");
