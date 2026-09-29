@@ -78,6 +78,22 @@ class Options {
         const savedLang = settings.get("ocrLanguage") || 'all';
         $("#ocrLanguageSelect").val(savedLang);
 
+        // The OCR engine downloads its language model on first use. Say so in the
+        // Detection tab: a failed download used to be console-only, which looks
+        // exactly like "auto-detect is broken".
+        ipcRenderer.on('map-detector-model-status', (event, status) => {
+            const alerts = { downloading: 'alert-info', ready: 'alert-success', error: 'alert-danger' };
+            const alert = $("#ocrModelAlert");
+            alert
+                .removeClass('d-none alert-info alert-success alert-danger')
+                .addClass(alerts[status.state] || 'alert-info')
+                .text(status.message || '');
+            if (status.state === 'ready') {
+                // Nothing to act on once the model is in place.
+                setTimeout(() => alert.addClass('d-none'), 4000);
+            }
+        });
+
         const savedCreator = settings.get("preferredCreator") || '';
         $("#preferredCreatorSelect").val(savedCreator);
 

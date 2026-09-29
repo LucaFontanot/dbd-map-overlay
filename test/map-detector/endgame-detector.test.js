@@ -1,23 +1,25 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 const sharp = require('sharp');
-const { createWorker } = require('tesseract.js');
 const { EndgameDetector } = require('../../src/core/map-detector/endgame-detector');
+const { missingModelsReason, createOcrService, loadFixture: load } = require('../helpers/ocr');
 
-const FIXTURES = path.join(__dirname, '..', 'fixtures', 'map-detector');
-const load = name => fs.readFileSync(path.join(FIXTURES, name));
+// Real OCR: these fixtures are decoded by the production engine (PaddleOCR), so
+// the suite skips when the model files are not on this machine yet.
+const SKIP = missingModelsReason();
 
-let worker, detector;
+let detector, ocr;
 
 before(async () => {
-    worker = await createWorker('eng', 1);
-    detector = new EndgameDetector(worker);
+    if (SKIP) return;
+    ocr = createOcrService();
+    detector = new EndgameDetector(ocr, []);
+    // Warm the ONNX sessions here so the timing test measures inference, not model init.
+    await detector.detectEndgame(load('endgame-public-scoreboard.png'));
 });
 
 after(async () => {
-    await worker.terminate();
+    await ocr?.dispose();
 });
 
 // Real endgame screens must not just be seen but read confidently -- a confident
@@ -33,49 +35,60 @@ async function assertNotEndgame(fixture) {
     assert.ok(!result.seen, `${fixture}: must not read as an endgame screen`);
 }
 
-test('recognizes the public-match scoreboard screen as an endgame screen', async () => {
+test('recognizes the public-match scoreboard screen as an endgame screen', async (t) => {
+    if (SKIP) return t.skip(SKIP);
     await assertEndgame('endgame-public-scoreboard.png');
 });
 
-test('recognizes the public-match bloodpoints screen as an endgame screen', async () => {
+test('recognizes the public-match bloodpoints screen as an endgame screen', async (t) => {
+    if (SKIP) return t.skip(SKIP);
     await assertEndgame('endgame-public-bloodpoints.png');
 });
 
-test('recognizes the custom-match scoreboard screen as an endgame screen (no "MATCH" prefix, different position/scale)', async () => {
+test('recognizes the custom-match scoreboard screen as an endgame screen (no "MATCH" prefix, different position/scale)', async (t) => {
+    if (SKIP) return t.skip(SKIP);
     await assertEndgame('endgame-custom-scoreboard.png');
 });
 
-test('recognizes the public-match grade screen as an endgame screen', async () => {
+test('recognizes the public-match grade screen as an endgame screen', async (t) => {
+    if (SKIP) return t.skip(SKIP);
     await assertEndgame('endgame-public-grade.png');
 });
 
-test('recognizes the public-match level screen as an endgame screen', async () => {
+test('recognizes the public-match level screen as an endgame screen', async (t) => {
+    if (SKIP) return t.skip(SKIP);
     await assertEndgame('endgame-public-level.png');
 });
 
-test('does not flag the lobby as an endgame screen', async () => {
+test('does not flag the lobby as an endgame screen', async (t) => {
+    if (SKIP) return t.skip(SKIP);
     await assertNotEndgame('lobby-public.png');
 });
 
-test('does not flag gameplay as an endgame screen', async () => {
+test('does not flag gameplay as an endgame screen', async (t) => {
+    if (SKIP) return t.skip(SKIP);
     await assertNotEndgame('gameplay-100.png');
     await assertNotEndgame('gameplay-public-2.png');
 });
 
-test('does not flag the offering screen as an endgame screen', async () => {
+test('does not flag the offering screen as an endgame screen', async (t) => {
+    if (SKIP) return t.skip(SKIP);
     await assertNotEndgame('offering-screen.png');
 });
 
-test('does not flag a loading screen as an endgame screen', async () => {
+test('does not flag a loading screen as an endgame screen', async (t) => {
+    if (SKIP) return t.skip(SKIP);
     await assertNotEndgame('loading-screen-100.png');
     await assertNotEndgame('loading-screen-70.png');
 });
 
-test('does not flag the custom lobby as an endgame screen', async () => {
+test('does not flag the custom lobby as an endgame screen', async (t) => {
+    if (SKIP) return t.skip(SKIP);
     await assertNotEndgame('lobby-custom.png');
 });
 
-test('does not flag the in-match menu as an endgame screen', async () => {
+test('does not flag the in-match menu as an endgame screen', async (t) => {
+    if (SKIP) return t.skip(SKIP);
     await assertNotEndgame('menu-open.png');
 });
 
@@ -89,14 +102,16 @@ function frameWithCornerText(word) {
     return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-test('matches the keyword as a whole word only, not as a substring of another word', async () => {
+test('matches the keyword as a whole word only, not as a substring of another word', async (t) => {
+    if (SKIP) return t.skip(SKIP);
     assert.ok((await detector.detectEndgame(await frameWithCornerText('CONTINUE'))).seen,
         'sanity check: the synthesized CONTINUE frame must be detected');
     assert.ok(!(await detector.detectEndgame(await frameWithCornerText('CONTINUED'))).seen,
         '"CONTINUED" must not count as an endgame screen');
 });
 
-test('detects the endgame screen quickly (small bounded ROI, not a full-frame OCR pass)', async () => {
+test('detects the endgame screen quickly (small bounded ROI, not a full-frame OCR pass)', async (t) => {
+    if (SKIP) return t.skip(SKIP);
     const t0 = Date.now();
     await detector.detectEndgame(load('endgame-public-scoreboard.png'));
     const elapsed = Date.now() - t0;

@@ -5,7 +5,7 @@
   "main": "index.js",
   "author": "Luca <admin@lucaservers.com>",
   "scripts": {
-    "test": "node --test 'test/**/*.test.js'",
+    "test": "node --test test",
     "start": "electron index.js",
     "prebuild": "bash scripts/prebuild.sh",
     "build": "npm run prebuild && electron-builder -wl",
@@ -13,7 +13,10 @@
     "build:linux": "npm run prebuild && electron-builder -l",
     "publish": "npm run prebuild && electron-builder -wl --publish always",
     "publish:win": "npm run prebuild && electron-builder -w --publish always",
-    "publish:linux": "npm run prebuild && electron-builder -l --publish always"
+    "publish:linux": "npm run prebuild && electron-builder -l --publish always",
+    "ocr-test": "node scripts/ocr-test.js",
+    "detector-test": "electron scripts/detector-test.js",
+    "fetch-ocr-models": "node scripts/fetch-ocr-models.js"
   },
   "keywords": [],
   "license": "ISC",
@@ -43,15 +46,21 @@
       "!.idea/*",
       "!.github/*",
       "!.vscode/*",
-      "!.yarn/*"
+      "!.yarn/*",
+      "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
+      "!node_modules/onnxruntime-node/bin/napi-v6/*/*/libonnxruntime_providers_*",
+      "!node_modules/onnxruntime-node/bin/napi-v6/*/*/DirectML.dll",
+      "!node_modules/onnxruntime-node/bin/napi-v6/*/*/dxcompiler.dll",
+      "!node_modules/onnxruntime-node/bin/napi-v6/*/*/dxil.dll"
     ],
     "asarUnpack": [
-      "node_modules/tesseract.js/**",
-      "node_modules/tesseract.js-core/**",
       "node_modules/sharp/**",
       "node_modules/@img/**",
       "node_modules/node-screenshots/**/*.node",
-      "node_modules/node-screenshots-*/**/*.node"
+      "node_modules/node-screenshots-*/**/*.node",
+      "node_modules/onnxruntime-node/bin/**/*.node",
+      "node_modules/onnxruntime-node/bin/**/*.so*",
+      "node_modules/onnxruntime-node/bin/**/*.dll"
     ],
     "nsis": {
       "oneClick": false,
@@ -70,11 +79,13 @@
     "electron-updater": "^6.7.3",
     "image-size": "^2.0.2",
     "jquery": "^4.0.0",
+    "js-yaml": "^5.4.2",
     "marked": "^17.0.2",
     "node-screenshots": "^0.2.8",
+    "onnxruntime-node": "^1.30.0",
+    "paddleocr": "^1.2.0",
     "popper.js": "^1.16.1",
     "sharp": "^0.34.5",
-    "tesseract.js": "^7.0.0",
     "uuid": "^13.0.0"
   },
   "optionalDependencies": {

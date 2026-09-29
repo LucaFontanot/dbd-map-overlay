@@ -1,7 +1,5 @@
 'use strict';
 
-const sharp = require('sharp');
-
 // Roster panel region, narrow enough to skip a stray in-scene player nameplate
 // that can render further left, tall enough to catch every roster row. The
 // roster sits lower when the loadout block above it is fuller (extra currency
@@ -10,21 +8,51 @@ const sharp = require('sharp');
 const ROI_X_START_FRAC = 0.85;
 const ROI_Y_END_FRAC = 0.45;
 
-// Roster rows are the only letter-rich text in this ROI: the currency row is
-// all digits, and the glyph/glow noise PSM 11 invents tops out around 4-5
-// letters spread over punctuation. Counting letters (not raw length) is what
-// keeps "5 13 895" and "ide? :" out while name fragments stay in.
+const ROI = {
+    x: ROI_X_START_FRAC,
+    y: 0,
+    width: 1 - ROI_X_START_FRAC,
+    height: ROI_Y_END_FRAC,
+};
+
+// Roster rows are the only letter-rich, name-shaped text in this ROI. What the
+// ROI also contains, and why each rule below exists (measured on the capture
+// fixtures with PaddleOCR, which reads this panel far more eagerly than
+// tesseract did):
+//   - the currency row ("165 454")      → no letters at all
+//   - "You"                             → under MIN_LINE_LETTERS
+//   - gameplay HUD labels ("DISTRACTION",
+//     "ASSIST", "BOLD")                 → all-caps, and the short ones anyway
+//   - replay/toast sentences ("Started
+//     recording in the replay session") → more than MAX_LINE_WORDS words
+// Player and bot names are mixed-case and name-shaped ("Anonymous",
+// "Dwight Fairfield_01"), so they pass every rule.
 const MIN_LINE_LETTERS = 6;
+const MAX_LINE_WORDS = 4;
+const MIN_CONFIDENCE = 0.9;
 
 // A custom can't start without a killer and at least one survivor, so by the
-// time a loading screen can follow, the roster always has 2+ name rows. Public
-// screens (lobby, menus, boot, endgame) measure 0-1 letter-rich lines here.
+// time a loading screen can follow, the roster always has 2+ name rows (the
+// smallest startable custom, host + one bot, reads exactly two). Public
+// screens (lobby, menus, boot, endgame) measure 0-1 name rows here.
 const CUSTOM_LOBBY_MIN_LINES = 2;
 
+/** @returns {boolean} whether a recognised line looks like a player/bot name */
+function looksLikePlayerName(item) {
+    const text = (item.text || '').trim();
+    const letters = (text.match(/\p{L}/gu) || []).length;
+    if (letters < MIN_LINE_LETTERS) return false;
+    if ((item.confidence ?? 0) < MIN_CONFIDENCE) return false;
+    const words = text.split(/\s+/).filter(Boolean);
+    if (words.length > MAX_LINE_WORDS) return false;
+    // DBD renders HUD/perk labels in caps; player names are shown as typed.
+    return text !== text.toUpperCase();
+}
+
 class LobbyClassifier {
-    /** @param {import('tesseract.js').Worker} worker already-initialized 'eng' worker */
-    constructor(worker) {
-        this.worker = worker;
+    /** @param {import('../ocr/ocr-service').OcrService} ocr */
+    constructor(ocr) {
+        this.ocr = ocr;
     }
 
     /**
@@ -32,33 +60,10 @@ class LobbyClassifier {
      * @returns {Promise<boolean>}
      */
     async isCustomLobby(pngBuffer) {
-        const meta = await sharp(pngBuffer).metadata();
-        const left = Math.floor(meta.width * ROI_X_START_FRAC);
-        const roi = await sharp(pngBuffer)
-            .extract({
-                left,
-                top: 0,
-                width: meta.width - left,
-                height: Math.floor(meta.height * ROI_Y_END_FRAC),
-            })
-            .greyscale()
-            .normalize()
-            .png()
-            .toBuffer();
-
-        // line-level detail only comes through blocks -> paragraphs -> lines,
-        // and only if you ask for it via the third recognize() arg
-        const { data } = await this.worker.recognize(
-            roi,
-            { tessedit_pageseg_mode: '11' },
-            { text: true, blocks: true }
-        );
-        const lines = (data.blocks ?? []).flatMap(block =>
-            (block.paragraphs ?? []).flatMap(paragraph => paragraph.lines ?? [])
-        );
-        const qualifyingLines = lines.filter(l => (l.text.match(/[a-z]/gi) ?? []).length >= MIN_LINE_LETTERS);
-        return qualifyingLines.length >= CUSTOM_LOBBY_MIN_LINES;
+        const { items } = await this.ocr.recognize(pngBuffer, { roi: ROI });
+        const rosterRows = items.filter(looksLikePlayerName);
+        return rosterRows.length >= CUSTOM_LOBBY_MIN_LINES;
     }
 }
 
-module.exports = { LobbyClassifier };
+module.exports = { LobbyClassifier, looksLikePlayerName };

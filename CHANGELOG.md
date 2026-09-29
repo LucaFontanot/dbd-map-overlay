@@ -1,3 +1,7 @@
+## Unreleased
+- Replaced tesseract.js with PaddleOCR (ONNX Runtime in the main process): map names, the endgame "CONTINUE" button and the custom-lobby roster are now read by a much more accurate engine, per-frame OCR is roughly 3x faster, and the blur/threshold image preprocessing is gone.
+- OCR language models (~10 MB for your game language) are downloaded on first use into `ocr-models` (from HuggingFace, with the PaddlePaddle bucket and an optional mirror as fallbacks), replacing the ~45 MB tessdata packs. Failures are now reported in the Detection settings tab instead of only in the log.
+
 ## 1.6.5
 - Total rewrite of the map detection system thanks to @Juli0q.
 - Added endgame detection to remove the overlay when the game ends.

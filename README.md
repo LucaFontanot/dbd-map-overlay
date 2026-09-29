@@ -44,9 +44,9 @@ Starting from **v1.6.0**, the overlay can detect which map you are loading into 
 
 ### How it works
 
-The detector periodically takes a screenshot of the Dead by Daylight window and runs **multi-language OCR** (via [tesseract.js](https://github.com/naptha/tesseract.js)) on the area where the game displays the **Realm / Map** name during the loading screen.
+The detector periodically takes a screenshot of the Dead by Daylight window and runs **multi-language OCR** (via [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), through the [paddleocr](https://www.npmjs.com/package/paddleocr) ONNX runtime) on the area where the game displays the **Realm / Map** name during the loading screen.
 
-Language packs (~45 MB total, fast LSTM model) are downloaded once and stored locally, no data ever leaves your machine.
+The language model for your game language (about 10 MB) is downloaded once on first use and stored locally, no data ever leaves your machine. A single model also recognises the localized "CONTINUE" button, so the overlay clears itself when the match ends.
 
 ## 🚀 Getting Started
 
