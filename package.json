@@ -19,7 +19,7 @@
     "fetch-ocr-models": "node scripts/fetch-ocr-models.js"
   },
   "keywords": [],
-  "license": "ISC",
+  "license": "Apache-2.0",
   "build": {
     "productName": "Dbd Map Overlay",
     "appId": "com.github.lucafontanot.dbdmapoverlay",
@@ -47,6 +47,12 @@
       "!.github/*",
       "!.vscode/*",
       "!.yarn/*",
+      "!test/**",
+      "!*.traineddata",
+      "!:memory:.ses",
+      "!**/*.md",
+      "!picture-hash.js",
+      "!AGENTS.md",
       "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
       "!node_modules/onnxruntime-node/bin/napi-v6/*/*/libonnxruntime_providers_*",
       "!node_modules/onnxruntime-node/bin/napi-v6/*/*/DirectML.dll",
@@ -75,7 +81,7 @@
     "@popperjs/core": "^2.11.8",
     "axios": "^1.20.0",
     "bootstrap": "^5.3.8",
-    "cron": "^4.4.0",
+    "dompurify": "^3.4.17",
     "electron-updater": "^6.7.3",
     "image-size": "^2.0.2",
     "jquery": "^4.0.0",
@@ -84,9 +90,7 @@
     "node-screenshots": "^0.2.8",
     "onnxruntime-node": "^1.30.0",
     "paddleocr": "^1.2.0",
-    "popper.js": "^1.16.1",
-    "sharp": "^0.34.5",
-    "uuid": "^13.0.0"
+    "sharp": "^0.34.5"
   },
   "optionalDependencies": {
     "@img/sharp-libvips-win32-x64": "^1.2.4",

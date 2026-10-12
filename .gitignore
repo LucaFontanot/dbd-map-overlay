@@ -103,7 +103,6 @@ dist
 
 # vuepress v2.x temp and cache directory
 .temp
-.cache
 
 # Docusaurus cache and generated files
 .docusaurus
@@ -132,3 +131,14 @@ dist
 *.traineddata
 
 CLAUDE.md
+
+# onnxruntime-node session artefact (written to CWD by OCR CLI/tests)
+:memory:.ses
+
+# IDE
+.idea/
+
+# Localization tooling output
+scripts/localization/i18n/
+scripts/localization/langs/
+scripts/localization/localization_output.json
