@@ -94,3 +94,12 @@ test('presetToGlide maps corners and defaults to top-left', () => {
     assert.deepStrictEqual(presetToGlide(3), {x: 0, y: 100});
     assert.deepStrictEqual(presetToGlide("bogus"), {x: 0, y: 0});
 });
+
+test('overlayAlign hugs the snapped edges', () => {
+    const {overlayAlign} = require('../src/core/overlay-position');
+    assert.deepStrictEqual(overlayAlign({position: "1", glideX: 0, glideY: 0}), {x: 'start', y: 'start'});
+    assert.deepStrictEqual(overlayAlign({position: "1", glideX: 100, glideY: 100}), {x: 'end', y: 'end'});
+    assert.deepStrictEqual(overlayAlign({position: "4", glideX: null, glideY: null}), {x: 'end', y: 'end'});
+    assert.deepStrictEqual(overlayAlign({position: "2", glideX: 40, glideY: null}), {x: 'center', y: 'start'});
+    assert.deepStrictEqual(overlayAlign({position: "1", glideX: 0, glideY: 0, draggable: true}), {x: 'center', y: 'center'});
+});

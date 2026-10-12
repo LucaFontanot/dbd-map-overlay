@@ -17,6 +17,19 @@ body.overlay {
     overflow: hidden;
 }
 
+/* Exactly the rotated bounding box main sized the window to: the map
+   rotates around its center, while the frame hugs the snapped edge */
+#frame {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+}
+
+#map {
+    flex: none;
+}
+
 /* OBS chroma key */
 body.obs {
     background-color: #00ff00;

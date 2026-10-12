@@ -40,6 +40,21 @@ function computeOverlayPosition({workArea, overlayWidth, overlayHeight, position
     };
 }
 
+// Which window edge the map hugs on each axis. On fractional display scaling
+// Electron rounds the window outward, so it comes out a pixel or two larger
+// than asked; a centered map would then never touch the edge it was snapped
+// to. Hugging that edge puts the slack on the far side instead. A dragged
+// overlay has no snapped edge and stays centered.
+function overlayAlign({position, glideX, glideY, draggable}) {
+    if (draggable) return {x: 'center', y: 'center'};
+    const preset = presetToGlide(position);
+    const edge = (glide) => glide <= 0 ? 'start' : glide >= 100 ? 'end' : 'center';
+    return {
+        x: edge(clampPercent(glideX, preset.x)),
+        y: edge(clampPercent(glideY, preset.y))
+    };
+}
+
 // Bounding box of a width x height image rotated by `rotation` degrees, so
 // the overlay window can be sized to fit any angle without clipping corners.
 function rotatedSize({width, height, rotation}) {
@@ -52,4 +67,4 @@ function rotatedSize({width, height, rotation}) {
     };
 }
 
-module.exports = {computeOverlayPosition, presetToGlide, rotatedSize};
+module.exports = {computeOverlayPosition, overlayAlign, presetToGlide, rotatedSize};

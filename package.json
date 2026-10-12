@@ -1,5 +1,6 @@
 {
   "name": "dbd-map",
+  "desktopName": "dbd-map.desktop",
   "version": "1.7.0",
   "description": "Overlay for DBD maps",
   "main": "index.js",
@@ -20,6 +21,9 @@
     "build:renderer": "vite build",
     "dev:renderer": "vite build --watch --mode development"
   },
+  "engines": {
+    "node": ">=20.19"
+  },
   "keywords": [],
   "license": "Apache-2.0",
   "build": {
@@ -31,7 +35,8 @@
         "rpm",
         "AppImage"
       ],
-      "category": "Games"
+      "category": "Games",
+      "syncDesktopName": true
     },
     "win": {
       "target": [

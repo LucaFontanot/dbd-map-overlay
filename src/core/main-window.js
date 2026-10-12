@@ -3,7 +3,7 @@ const path = require("path");
 const {autoUpdater} = require("electron-updater");
 const fs = require("fs");
 const { imageSize } = require('image-size')
-const { computeOverlayPosition, rotatedSize } = require('./overlay-position');
+const { computeOverlayPosition, overlayAlign, rotatedSize } = require('./overlay-position');
 const { safeJoin, lockDownWebContents } = require('./utils');
 const { securePreferences, loadPage } = require('./renderer-pages');
 const isWayland = require('./is-wayland');
@@ -139,37 +139,43 @@ class MainWindow {
         const displays = screen.getAllDisplays();
         const monitorIndex = parseInt(settings.get('monitor')) || 0;
         const selectedDisplay = displays[monitorIndex] || displays[0] || screen.getPrimaryDisplay();
-        overlayWindow.setBounds({
-            ...selectedDisplay.workArea,
-            width: 0,
-            height: 0,
-            x: settings.get('overlayX') || 0,
-            y: settings.get('overlayY') || 0
-        })
-        // Window fits the rotated bounding box so arbitrary angles don't clip
+        // Window fits the rotated bounding box exactly so arbitrary angles don't
+        // clip. No padding: any extra room shows up as a gap between the map
+        // and the screen edge, so the corner presets / glide 0-100 could never
+        // reach the corner.
         const displayWidth = parseInt(settings.get('size'));
         const rotated = rotatedSize({
             width: displayWidth,
             height: (displayWidth / dimensions.width) * dimensions.height,
             rotation: settings.get('rotation')
         });
-        overlayWindow.setSize(rotated.width + 5, parseInt(rotated.height * 1.1))
-        if (!settings.get('draggable')) {
-            const overlayBounds = overlayWindow.getBounds();
-            const {x, y} = computeOverlayPosition({
+        const draggable = settings.get('draggable');
+        const {x, y} = draggable
+            ? {x: settings.get('overlayX') || 0, y: settings.get('overlayY') || 0}
+            : computeOverlayPosition({
                 workArea: selectedDisplay.workArea,
-                overlayWidth: overlayBounds.width,
-                overlayHeight: overlayBounds.height,
+                overlayWidth: rotated.width,
+                overlayHeight: rotated.height,
                 position: settings.get('position'),
                 glideX: settings.get('glideX'),
                 glideY: settings.get('glideY')
             });
-            overlayWindow.setPosition(x, y);
-        }
+        // One setBounds, not setSize + setPosition: on fractional scaling every
+        // call rounds the window outward again, growing it a pixel per call.
+        overlayWindow.setBounds({x, y, width: rotated.width, height: rotated.height});
+        const layout = {
+            box: rotated,
+            align: overlayAlign({
+                position: settings.get('position'),
+                glideX: settings.get('glideX'),
+                glideY: settings.get('glideY'),
+                draggable
+            })
+        };
         // Raw bytes go over IPC (structured clone → Uint8Array in the renderer);
         // an empty payload means "hidden" for the overlay.
         const overlayBytes = settings.get('hideOverlay') ? new Uint8Array(0) : bytes;
-        overlayWindow.send('map-change', overlayBytes, settings.get('size'), settings.get('opacity'), settings.get('draggable'), settings.get('rotation'))
+        overlayWindow.send('map-change', overlayBytes, settings.get('size'), settings.get('opacity'), settings.get('draggable'), settings.get('rotation'), layout)
     }
 
     show() {
