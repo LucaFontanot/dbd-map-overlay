@@ -65,6 +65,7 @@ function sourcesForAsset(asset) {
             onnx: 'inference.onnx',
             dictionary: 'dict.txt',
             dictionaryFormat: 'txt',
+            attempts: 2,
         });
     }
     sources.push({
@@ -74,46 +75,58 @@ function sourcesForAsset(asset) {
         onnx: 'inference.onnx',
         dictionary: 'inference.yml',
         dictionaryFormat: 'yml',
+        // Two tries, not three: with the official bucket still to go, a dead
+        // HuggingFace must not hold the first run up for minutes.
+        attempts: 2,
     });
-    sources.push({ kind: 'tar', label: 'official archive', url: asset.url });
+    sources.push({ kind: 'tar', label: 'official archive', url: asset.url, attempts: 3 });
     return sources;
 }
 
 /** Shared across every language: detecting boxes is script agnostic. */
 const DETECTION_MODEL = {
     id: 'PP-OCRv5_mobile_det',
+    kind: 'detection',
     url: `${BASE_URL}/PP-OCRv5_mobile_det_onnx_infer.tar`,
     bytes: 4843520,
 };
 
 /**
- * Recognition models, keyed by script group. The `.onnx` size drives the
- * download total (the user only ever needs the detection model plus one of these).
+ * Recognition models, keyed by script group. `bytes` is the official archive
+ * size: it drives the download total and, at 90%, the floor below which a
+ * downloaded or cached `inference.onnx` counts as truncated (the onnx is ~99%
+ * of its archive). `kind: 'recognition'` means the model is unusable without
+ * its dictionary. The user only ever needs the detection model plus one of these.
  */
 const RECOGNITION_MODELS = {
     // Latin + CJK + Japanese: the v5 mobile rec model covers en/ch/cht/ja in one file.
     default: {
         id: 'PP-OCRv5_mobile_rec',
+        kind: 'recognition',
         url: `${BASE_URL}/PP-OCRv5_mobile_rec_onnx_infer.tar`,
         bytes: 16701440,
     },
     latin: {
         id: 'latin_PP-OCRv5_mobile_rec',
+        kind: 'recognition',
         url: `${BASE_URL}/latin_PP-OCRv5_mobile_rec_onnx_infer.tar`,
         bytes: 8069120,
     },
     cyrillic: {
         id: 'cyrillic_PP-OCRv5_mobile_rec',
+        kind: 'recognition',
         url: `${BASE_URL}/cyrillic_PP-OCRv5_mobile_rec_onnx_infer.tar`,
         bytes: 8079360,
     },
     korean: {
         id: 'korean_PP-OCRv5_mobile_rec',
+        kind: 'recognition',
         url: `${BASE_URL}/korean_PP-OCRv5_mobile_rec_onnx_infer.tar`,
         bytes: 13537280,
     },
     thai: {
         id: 'th_PP-OCRv5_mobile_rec',
+        kind: 'recognition',
         url: `${BASE_URL}/th_PP-OCRv5_mobile_rec_onnx_infer.tar`,
         bytes: 7915520,
     },

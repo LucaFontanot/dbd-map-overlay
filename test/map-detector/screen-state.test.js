@@ -138,3 +138,12 @@ test('progress-bar scan: rejects a bounded, isolated spike that tapers instead o
     const frame = await spikeFrame({});
     assert.ok(!(await hasFilledProgressBar(frame)));
 });
+
+test('raw RGBA captures (what the live window grab returns) classify exactly like their PNG', async () => {
+    for (const name of fs.readdirSync(FIXTURES).filter(f => f.endsWith('.png'))) {
+        const png = load(name);
+        const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+        const raw = { data, width: info.width, height: info.height, channels: info.channels };
+        assert.equal(await hasFilledProgressBar(raw), await hasFilledProgressBar(png), name);
+    }
+});

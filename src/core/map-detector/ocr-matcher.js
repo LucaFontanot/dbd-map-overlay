@@ -1,8 +1,10 @@
 'use strict';
 
-// Edit distance is defined once in map-match.js (the single source of map-name
-// matching helpers) and reused here for fuzzy OCR-line matching.
-const { levenshtein } = require('../map-match');
+// Edit distance and name folding are defined once in map-match.js (the single
+// source of map-name matching helpers) and reused here for fuzzy OCR-line
+// matching. normalizedI18n keys must be built with the same foldName (see
+// MapDetector._loadI18n) or the normalized lookups below never hit.
+const { levenshtein, foldName } = require('../map-match');
 
 class OcrMatcher {
     /**
@@ -50,7 +52,7 @@ class OcrMatcher {
         const exact = this.reverseI18n.get(raw);
         if (exact) return { key: exact, type: this._classify(exact) };
 
-        const normRaw = raw.replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+        const normRaw = foldName(raw);
         if (normRaw.length > 2) {
             const normKey = this.normalizedI18n.get(normRaw);
             if (normKey) return { key: normKey, type: this._classify(normKey) };

@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { OcrMatcher } = require('../../src/core/map-detector/ocr-matcher');
+const { foldName } = require('../../src/core/map-match');
 const { FALLBACK_REALMS } = require('../../src/core/map-detector/fallback-realms');
 
 // Mirrors MapDetector._loadI18n's table construction, minus the electron deps,
@@ -13,7 +14,7 @@ function buildProductionMatcher() {
     for (const [englishKey, localizedValue] of Object.entries(en)) {
         reverseI18n.set(localizedValue.toLowerCase().trim(), englishKey);
         reverseI18n.set(englishKey.toLowerCase().trim(), englishKey);
-        const norm = englishKey.toLowerCase().trim().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+        const norm = foldName(englishKey);
         if (norm.length > 2 && !normalizedI18n.has(norm)) normalizedI18n.set(norm, englishKey);
     }
     return new OcrMatcher({ reverseI18n, normalizedI18n, realmKeys: FALLBACK_REALMS });
@@ -94,7 +95,7 @@ function buildAugmentedMatcher(creatorNames) {
     for (const [englishKey, localizedValue] of Object.entries(en2)) {
         reverseI18n.set(localizedValue.toLowerCase().trim(), englishKey);
         reverseI18n.set(englishKey.toLowerCase().trim(), englishKey);
-        const norm = englishKey.toLowerCase().trim().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+        const norm = foldName(englishKey);
         if (norm.length > 2 && !normalizedI18n.has(norm)) normalizedI18n.set(norm, englishKey);
     }
     const realmKeys = new Set(FALLBACK_REALMS);

@@ -109,21 +109,31 @@ function readDictionary(ymlBuffer) {
 
 // The official model host is a single, slow, China-hosted CDN: a first run that
 // gives up after one dropped connection means a user whose detection silently
-// never works. Retry each source a few times with a backoff before moving on.
-const SOURCE_ATTEMPTS = 3;
+// never works. Each source is retried (`source.attempts`, default below) with a
+// backoff before moving on to the next one.
+const DEFAULT_SOURCE_ATTEMPTS = 3;
 const RETRY_BACKOFF_MS = 1500;
+
+// Socket idle timeout (axios' Node adapter applies `timeout` to the socket, not
+// to the whole transfer): a stalled connection is dropped after 30 s instead of
+// 5 minutes, so a dead source falls through to the next one in about a minute.
+const IDLE_TIMEOUT_MS = 30000;
+
+// A downloaded or cached `inference.onnx` smaller than this fraction of the
+// catalog size is a truncated transfer, not a model.
+const MIN_SIZE_RATIO = 0.9;
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/** 404/403 means "not here", not "try again in a second": skip that source. */
+/** 401/403/404 means "not here" (HuggingFace answers 401 for unknown repos), not "try again in a second". */
 function isPermanent(err) {
     const status = err?.response?.status;
-    return status === 403 || status === 404;
+    return status === 401 || status === 403 || status === 404;
 }
 
-async function fetchBuffer(url, onProgress, timeout = 300000) {
+async function fetchBuffer(url, onProgress, timeout = IDLE_TIMEOUT_MS) {
     const response = await axios.get(url, {
         responseType: 'arraybuffer',
         timeout,
@@ -133,12 +143,25 @@ async function fetchBuffer(url, onProgress, timeout = 300000) {
     return Buffer.from(response.data);
 }
 
+/** @returns {number} smallest acceptable inference.onnx size for an asset (0 when unknown) */
+function minimumModelBytes(asset) {
+    return asset && asset.bytes ? Math.floor(asset.bytes * MIN_SIZE_RATIO) : 0;
+}
+
+/** Recognition models are useless without their dictionary; detection models have none. */
+function needsDictionary(asset) {
+    return asset && asset.kind === 'recognition';
+}
+
 /**
- * Downloads an asset from one source into the model directory.
+ * Downloads an asset from one source.
  *
  * `files` sources hand over the model and its dictionary as two direct
  * downloads (a self-hosted mirror or the HuggingFace export); `tar` sources are
  * the official archives carrying both inside one file.
+ *
+ * Throws (so the caller retries or moves to the next source) when the model is
+ * truncated or a recognition model comes without its dictionary.
  *
  * @returns {Promise<{onnx: Buffer, dictionary: string[]|null}>}
  */
@@ -151,33 +174,48 @@ async function fetchFromSource(asset, source, onProgress) {
         })
         : undefined;
 
+    let result;
     if (source.kind === 'files') {
         const onnx = await fetchBuffer(`${source.base}/${source.onnx}`, progress);
         let dictionary = null;
         try {
-            const raw = await fetchBuffer(`${source.base}/${source.dictionary}`, undefined, 60000);
+            const raw = await fetchBuffer(`${source.base}/${source.dictionary}`);
             dictionary = source.dictionaryFormat === 'yml'
                 ? readDictionary(raw)
-                : raw.toString('utf-8').split('\n');
+                : raw.toString('utf-8').split(/\r?\n/);
         } catch (err) {
             // Detection models have no dictionary; only a hard 404 counts as "none".
             if (!isPermanent(err)) throw err;
         }
-        return { onnx, dictionary };
+        result = { onnx, dictionary };
+    } else {
+        const archive = await fetchBuffer(source.url, progress);
+        const entries = extractTarEntries(archive);
+        result = {
+            onnx: pickEntry(entries, 'inference.onnx'),
+            dictionary: readDictionary(pickEntry(entries, 'inference.yml')),
+        };
     }
 
-    const archive = await fetchBuffer(source.url, progress);
-    const entries = extractTarEntries(archive);
-    return {
-        onnx: pickEntry(entries, 'inference.onnx'),
-        dictionary: readDictionary(pickEntry(entries, 'inference.yml')),
-    };
+    const minimum = minimumModelBytes(asset);
+    if (result.onnx.length < minimum) {
+        throw new Error(`truncated model: got ${result.onnx.length} bytes, expected at least ${minimum}`);
+    }
+    if (needsDictionary(asset) && !(result.dictionary && result.dictionary.length > 0)) {
+        throw new Error('recognition model came without its dictionary');
+    }
+    return result;
 }
 
 class ModelStore {
-    /** @param {string} modelsDir directory holding one folder per model id */
-    constructor(modelsDir) {
+    /**
+     * @param {string} modelsDir directory holding one folder per model id
+     * @param {{sourcesFor?: (asset: object) => Array<object>}} [options]
+     *   sourcesFor overrides the catalog's source list (tests serve a local archive)
+     */
+    constructor(modelsDir, { sourcesFor } = {}) {
         this.modelsDir = modelsDir;
+        this.sourcesFor = sourcesFor || sourcesForAsset;
     }
 
     /** @returns {string} */
@@ -185,66 +223,115 @@ class ModelStore {
         return path.join(this.modelsDir, modelId);
     }
 
-    /** @returns {boolean} a model is usable once its .onnx is there (detection models have no dictionary) */
-    has(modelId) {
-        return fs.existsSync(path.join(this.dirFor(modelId), 'inference.onnx'));
+    /**
+     * Whether a model is on disk and complete.
+     *
+     * Given only an id this checks that `inference.onnx` exists. Given the
+     * catalog asset it also rejects a truncated onnx (a download interrupted by
+     * an older build that wrote the model in place) and a recognition model
+     * missing its dictionary, so either gets downloaded again.
+     *
+     * @param {string|{id: string, bytes?: number, kind?: string}} assetOrId
+     * @returns {boolean}
+     */
+    has(assetOrId) {
+        const asset = typeof assetOrId === 'string' ? { id: assetOrId } : assetOrId;
+        const dir = this.dirFor(asset.id);
+        const onnxPath = path.join(dir, 'inference.onnx');
+        let size;
+        try {
+            size = fs.statSync(onnxPath).size;
+        } catch {
+            return false;
+        }
+        if (size < minimumModelBytes(asset)) return false;
+        if (needsDictionary(asset) && !fs.existsSync(path.join(dir, 'dict.txt'))) return false;
+        return true;
     }
 
-    /** @returns {{modelPath: string, dictionary: string[]|null}|null} null when the model is not on disk yet */
-    load(modelId) {
-        if (!this.has(modelId)) return null;
-        const dir = this.dirFor(modelId);
+    /**
+     * @param {string|{id: string, bytes?: number, kind?: string}} assetOrId
+     * @returns {{modelPath: string, dictionary: string[]|null}|null} null when the model is not (completely) on disk
+     */
+    load(assetOrId) {
+        if (!this.has(assetOrId)) return null;
+        const dir = this.dirFor(typeof assetOrId === 'string' ? assetOrId : assetOrId.id);
         const dictFile = path.join(dir, 'dict.txt');
         return {
             modelPath: path.join(dir, 'inference.onnx'),
-            dictionary: fs.existsSync(dictFile) ? fs.readFileSync(dictFile, 'utf-8').split('\n') : null,
+            dictionary: fs.existsSync(dictFile) ? fs.readFileSync(dictFile, 'utf-8').split(/\r?\n/) : null,
         };
     }
 
     /**
+     * Deletes a model folder, so the next ensure() downloads it again. Used when
+     * the runtime cannot create a session from what is on disk (corrupt file).
+     * @param {string} modelId
+     */
+    remove(modelId) {
+        fs.rmSync(this.dirFor(modelId), { recursive: true, force: true });
+    }
+
+    /**
+     * Writes a fetched model. The dictionary goes first and the onnx is renamed
+     * into place last: `has()` keys off inference.onnx, so an interruption at any
+     * point leaves either no model or a complete one, never a half-written file
+     * that looks finished.
+     */
+    _write(asset, { onnx, dictionary }) {
+        const dir = this.dirFor(asset.id);
+        fs.mkdirSync(dir, { recursive: true });
+        const onnxPath = path.join(dir, 'inference.onnx');
+        fs.rmSync(onnxPath, { force: true });
+        if (dictionary) fs.writeFileSync(path.join(dir, 'dict.txt'), dictionary.join('\n'));
+        const tmp = `${onnxPath}.tmp`;
+        fs.writeFileSync(tmp, onnx);
+        fs.renameSync(tmp, onnxPath);
+    }
+
+    /**
      * Ensures one model is on disk, trying every configured source in order
-     * (mirror first, then the official bucket) before giving up.
-     * @param {{id: string, url: string, bytes: number}} asset
+     * (mirror, HuggingFace, then the official bucket) before giving up.
+     * @param {{id: string, url: string, bytes: number, kind?: string}} asset
      * @param {(progress: {modelId: string, receivedBytes: number, totalBytes: number}) => void} [onProgress]
      * @returns {Promise<{modelPath: string, dictionary: string[]|null}>}
      */
     async ensure(asset, onProgress) {
-        const cached = this.load(asset.id);
+        const cached = this.load(asset);
         if (cached) {
             debug && console.log(`ModelStore: ${asset.id} already on disk`);
             return cached;
         }
 
-        const sources = sourcesForAsset(asset);
+        const sources = this.sourcesFor(asset);
         const failures = [];
         for (const source of sources) {
             const label = source.label;
-            for (let attempt = 1; attempt <= SOURCE_ATTEMPTS; attempt++) {
+            const attempts = source.attempts || DEFAULT_SOURCE_ATTEMPTS;
+            for (let attempt = 1; attempt <= attempts; attempt++) {
                 try {
-                    console.log(`ModelStore: fetching ${asset.id} from ${label} (attempt ${attempt}/${SOURCE_ATTEMPTS})`);
+                    console.log(`ModelStore: fetching ${asset.id} from ${label} (attempt ${attempt}/${attempts})`);
                     const started = Date.now();
-                    const { onnx, dictionary } = await fetchFromSource(asset, source, onProgress);
-
-                    const dir = this.dirFor(asset.id);
-                    fs.mkdirSync(dir, { recursive: true });
-                    fs.writeFileSync(path.join(dir, 'inference.onnx'), onnx);
-                    // Write the dictionary last: `has()` keys off inference.onnx, but a
-                    // model without its dictionary is useless to the runtime, so keep
-                    // the pair atomic-ish by writing the model first and the dict after.
-                    if (dictionary) fs.writeFileSync(path.join(dir, 'dict.txt'), dictionary.join('\n'));
+                    const fetched = await fetchFromSource(asset, source, onProgress);
+                    this._write(asset, fetched);
+                    const { dictionary } = fetched;
                     console.log(`ModelStore: ${asset.id} ready from ${label} in ${Date.now() - started} ms${dictionary ? ` (${dictionary.length} dictionary entries)` : ''}`);
 
-                    return this.load(asset.id);
+                    const loaded = this.load(asset);
+                    if (!loaded) throw new Error('model written but not readable back');
+                    return loaded;
                 } catch (err) {
                     failures.push(`${label}: ${err.message}`);
-                    console.warn(`ModelStore: ${asset.id} from ${label} failed (attempt ${attempt}/${SOURCE_ATTEMPTS}): ${err.message}`);
+                    console.warn(`ModelStore: ${asset.id} from ${label} failed (attempt ${attempt}/${attempts}): ${err.message}`);
                     if (isPermanent(err)) break; // no point retrying a 404
-                    if (attempt < SOURCE_ATTEMPTS) await sleep(RETRY_BACKOFF_MS * attempt);
+                    if (attempt < attempts) await sleep(RETRY_BACKOFF_MS * attempt);
                 }
             }
         }
 
-        throw new Error(`Could not download OCR model ${asset.id}. Tried ${failures.length} attempt(s): ${failures.join(' | ')}`);
+        const error = new Error(`Could not download OCR model ${asset.id}. Tried ${failures.length} attempt(s): ${failures.join(' | ')}`);
+        error.code = 'OCR_MODEL_DOWNLOAD_FAILED';
+        throw error;
     }
 }
 

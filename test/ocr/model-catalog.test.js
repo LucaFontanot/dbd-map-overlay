@@ -77,3 +77,14 @@ test('a configured mirror is tried before any remote source', () => {
         if (previous === undefined) delete process.env.OCR_MODEL_MIRROR; else process.env.OCR_MODEL_MIRROR = previous;
     }
 });
+
+test('assets say whether they need a dictionary, and HuggingFace gets fewer retries than the last resort', () => {
+    assert.equal(DETECTION_MODEL.kind, 'detection');
+    for (const [key, asset] of Object.entries(RECOGNITION_MODELS)) {
+        assert.equal(asset.kind, 'recognition', `${key} must require its dictionary`);
+    }
+    const sources = sourcesForAsset(RECOGNITION_MODELS.latin);
+    const hf = sources.find(s => /huggingface/.test(s.base || ''));
+    const tar = sources.find(s => s.kind === 'tar');
+    assert.ok(hf.attempts < tar.attempts, 'a dead HuggingFace must fall through to the bucket quickly');
+});

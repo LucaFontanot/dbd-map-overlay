@@ -27,7 +27,6 @@ global.dirname = path.join(__dirname, '..');
 app.setName(require(path.join(global.dirname, 'package.json')).name);
 
 const FIXTURES = path.join(global.dirname, 'test', 'fixtures', 'map-detector');
-const MAP_NAME_ROI = { x: 0, y: 0.65, width: 0.85, height: 0.30 };
 
 /**
  * Loading screen with a real map title painted where the game prints it.
@@ -57,10 +56,14 @@ async function mapLoadingFrame() {
     };
 
     const title = await sharp(source).extract(band).resize(target.width, target.height, { fit: 'fill' }).png().toBuffer();
-    return sharp(base)
+    // Raw RGBA, the shape MapDetector._captureDBD hands over from a live window
+    // (the endgame frame below stays a PNG, so both frame shapes are exercised).
+    const { data, info } = await sharp(base)
         .composite([{ input: title, left: target.left, top: target.top }])
-        .png()
-        .toBuffer();
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+    return { data, width: info.width, height: info.height, channels: info.channels };
 }
 
 (async () => {

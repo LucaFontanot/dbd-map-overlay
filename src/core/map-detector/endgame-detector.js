@@ -57,4 +57,4 @@ class EndgameDetector {
     }
 }
 
-module.exports = { EndgameDetector, ROI_X_START_FRAC, ROI_Y_START_FRAC, CONFIDENT_MIN };
+module.exports = { EndgameDetector, ROI, ROI_X_START_FRAC, ROI_Y_START_FRAC, CONFIDENT_MIN };

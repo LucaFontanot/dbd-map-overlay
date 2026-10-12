@@ -9,6 +9,12 @@ class DetectionStateMachine {
         this._running = false;
         this._loopPromise = null;
 
+        // Bumped on every start()/stop(). A loop only keeps going (and only reports
+        // anything) while its own generation is current, so a stop()+start() while
+        // the old loop is still awaiting an OCR call can never leave two loops
+        // running or let the stale one fire onMapDetected/onMatchEnded.
+        this._generation = 0;
+
         // Cached from IDLE, since the lobby is usually gone by the time HUNTING starts.
         this._lastLobbyWasCustom = false;
 
@@ -38,28 +44,36 @@ class DetectionStateMachine {
     start() {
         if (this._running) return;
         this._running = true;
-        this._loopPromise = this._run().catch(err => {
+        const generation = ++this._generation;
+        this._loopPromise = this._run(generation).catch(err => {
             console.error('DetectionStateMachine: loop crashed:', err);
-            this._running = false;
+            if (this._generation === generation) this._running = false;
         });
     }
 
     stop() {
         this._running = false;
+        this._generation++;
         this._state = STATE.IDLE;
     }
 
-    async _run() {
-        while (this._running) {
+    /** @returns {boolean} whether the loop that captured `generation` is still the live one */
+    _live(generation) {
+        return this._running && this._generation === generation;
+    }
+
+    async _run(generation) {
+        while (this._live(generation)) {
             try {
                 if (this._state === STATE.IDLE) {
-                    await this._tickIdle();
+                    await this._tickIdle(generation);
                 } else if (this._state === STATE.HUNTING) {
-                    await this._runHunting();
+                    await this._runHunting(generation);
                 } else if (this._state === STATE.MATCH_ACTIVE) {
-                    await this._runMatchActive();
+                    await this._runMatchActive(generation);
                 }
             } catch (err) {
+                if (!this._live(generation)) break; // stopped mid-tick (e.g. OCR disposed): not a failure
                 // One bad tick shouldn't kill detection for the rest of the session.
                 console.error('DetectionStateMachine: tick failed, continuing:', err);
                 await sleep(this.deps.idlePollMs);
@@ -67,21 +81,29 @@ class DetectionStateMachine {
         }
     }
 
-    async _tickIdle() {
+    async _tickIdle(generation) {
         const frame = await this.deps.captureFrame();
-        if (frame) {
+        if (frame && this._live(generation)) {
             if (await this.deps.hasFilledProgressBar(frame)) {
+                if (!this._live(generation)) return;
                 console.log('DetectionStateMachine: IDLE -> HUNTING (loading screen detected)');
                 this._state = STATE.HUNTING;
                 return;
             }
-            // Remember whether the lobby looks custom, for detectInCustoms.
-            this._lastLobbyWasCustom = await this.deps.isCustomLobby(frame);
+            // Remember whether the lobby looks custom, for detectInCustoms. The
+            // flag is only read when detection in customs is off, so skip the
+            // roster OCR pass (every idle tick) when it is on.
+            if (this.deps.detectInCustoms()) {
+                this._lastLobbyWasCustom = false;
+            } else {
+                const custom = await this.deps.isCustomLobby(frame);
+                if (this._live(generation)) this._lastLobbyWasCustom = custom;
+            }
         }
         await sleep(this.deps.idlePollMs);
     }
 
-    async _runHunting() {
+    async _runHunting(generation) {
         if (this._lastLobbyWasCustom && !this.deps.detectInCustoms()) {
             // Custom match, detection off for those: skip OCR, still track when it ends.
             console.log('DetectionStateMachine: HUNTING -> MATCH_ACTIVE (custom lobby, detectInCustoms is off -- skipping map-text OCR)');
@@ -97,10 +119,11 @@ class DetectionStateMachine {
         let lastHeartbeatAt = startedAt;
         console.log(`DetectionStateMachine: HUNTING started (timeout ${this.deps.huntTimeoutMs}ms, polling every ${this.deps.huntPollMs}ms)`);
 
-        while (this._running && this._state === STATE.HUNTING && Date.now() < deadline) {
+        while (this._live(generation) && this._state === STATE.HUNTING && Date.now() < deadline) {
             const frame = await this.deps.captureFrame();
-            if (frame) {
+            if (frame && this._live(generation)) {
                 const result = await this.deps.recognizeMapText(frame);
+                if (!this._live(generation)) return;
                 if (result) {
                     const key = result.realm ? `${result.realm}/${result.map}` : result.map;
                     if (key === pendingKey) {
@@ -124,7 +147,7 @@ class DetectionStateMachine {
             await sleep(this.deps.huntPollMs);
         }
 
-        if (this._running) {
+        if (this._live(generation) && this._state === STATE.HUNTING) {
             console.log(`DetectionStateMachine: HUNTING timed out after ${Date.now() - startedAt}ms with no confirmed map -> MATCH_ACTIVE anyway (will keep watching for the match to end)`);
             this._matchSeenBright = false;
             this._endgameSeen = false;
@@ -139,10 +162,10 @@ class DetectionStateMachine {
         this._detectorOwnsOverlay = false;
     }
 
-    async _runMatchActive() {
+    async _runMatchActive(generation) {
         if (this._skipMatchActive) {
             // Just wait for the next loading screen, no endgame OCR for opted-out matches.
-            await this._tickIdle();
+            await this._tickIdle(generation);
             if (this._state === STATE.HUNTING) {
                 this._state = STATE.IDLE; // re-check the custom flag fresh next lobby
                 // _tickIdle()'s near-black+bar branch never sleeps (fast reaction from
@@ -153,8 +176,9 @@ class DetectionStateMachine {
         }
 
         const frame = await this.deps.captureFrame();
-        if (frame) {
+        if (frame && this._live(generation)) {
             const endgame = await this.deps.detectEndgame(frame);
+            if (!this._live(generation)) return;
             if (endgame.seen) {
                 if (endgame.confident || this._endgameSeen) {
                     const how = endgame.confident ? 'confident read' : 'confirmed on 2 consecutive reads';
@@ -173,7 +197,9 @@ class DetectionStateMachine {
 
             // Missed the endgame screen? A fresh loading screen also means the match
             // ended, so jump straight to HUNTING instead of going back through IDLE.
-            if (await this.deps.hasFilledProgressBar(frame)) {
+            const loadingScreen = await this.deps.hasFilledProgressBar(frame);
+            if (!this._live(generation)) return;
+            if (loadingScreen) {
                 if (this._matchSeenBright) {
                     console.log('DetectionStateMachine: MATCH_ACTIVE -> HUNTING (missed the endgame screen, but a fresh loading screen appeared -- treating the previous match as over)');
                     this._endMatch();

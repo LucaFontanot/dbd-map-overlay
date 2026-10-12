@@ -297,3 +297,73 @@ test('detectInCustoms=false skips a custom lobby entirely: HUNTING still runs bu
     assert.deepEqual(calls.onMatchEnded, []);
     sm.stop();
 });
+
+test('IDLE skips the roster OCR pass when detection in customs is on (its result would be unused)', async () => {
+    let lobbyReads = 0;
+    const { deps } = buildDeps({
+        isCustomLobby: async () => { lobbyReads++; return true; },
+        detectInCustoms: () => true,
+    });
+    const sm = new DetectionStateMachine(deps);
+    sm.start();
+    await sleep(60);
+    sm.stop();
+    assert.equal(lobbyReads, 0);
+});
+
+test('IDLE still classifies the lobby when detection in customs is off', async () => {
+    let lobbyReads = 0;
+    const { deps } = buildDeps({
+        isCustomLobby: async () => { lobbyReads++; return false; },
+        detectInCustoms: () => false,
+    });
+    const sm = new DetectionStateMachine(deps);
+    sm.start();
+    await sleep(60);
+    sm.stop();
+    assert.ok(lobbyReads > 0);
+});
+
+test('an OCR read that finishes after stop() never reports a map, even after a restart', async () => {
+    let release;
+    let reads = 0;
+    const { deps, calls } = buildDeps({
+        hasFilledProgressBar: async () => true,
+        recognizeMapText: async () => {
+            reads++;
+            if (reads === 2) await new Promise(r => { release = r; }); // second (confirming) read hangs
+            return { realm: null, map: 'Blood Lodge' };
+        },
+        huntTimeoutMs: 10000,
+    });
+    const sm = new DetectionStateMachine(deps);
+    sm.start();
+    await sleep(40);
+    assert.ok(release, 'the confirming read should be in flight');
+    sm.stop();
+    // Restart with a loop that never gets a map read through.
+    deps.recognizeMapText = async () => null;
+    sm.start();
+    release();
+    await sleep(40);
+    sm.stop();
+    assert.deepEqual(calls.onMapDetected, [], 'the stale loop must not fire onMapDetected');
+});
+
+test('stop() + start() leaves exactly one loop running', async () => {
+    let captures = 0;
+    const { deps } = buildDeps({
+        captureFrame: async () => { captures++; await sleep(5); return Buffer.from('frame'); },
+        idlePollMs: 20,
+    });
+    const sm = new DetectionStateMachine(deps);
+    sm.start();
+    await sleep(2); // first loop is mid-capture
+    sm.stop();
+    sm.start();
+    captures = 0;
+    await sleep(200);
+    sm.stop();
+    // One loop: ~25 ms per tick → about 8 captures in 200 ms; two loops would double it.
+    assert.ok(captures <= 10, `expected a single loop, saw ${captures} captures`);
+});

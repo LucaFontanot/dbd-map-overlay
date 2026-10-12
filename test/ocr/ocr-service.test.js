@@ -12,7 +12,7 @@ before(() => {
 });
 
 after(async () => {
-    await ocr.dispose();
+    await ocr.close();
 });
 
 test('reads a map-name crop into text items with confidences', async (t) => {
@@ -44,8 +44,8 @@ test('crops a fractional ROI before recognising (endgame corner of a 4K frame)',
 
 test('keeps working after dispose(): the sessions are reloaded on the next frame', async (t) => {
     if (SKIP) return t.skip(SKIP);
-    // The detector disposes the engine between matches to free memory; the next
-    // loading screen must be recognised without restarting the app.
+    // The detector disposes the engine when detection is switched off or the game
+    // language changes; switching it back on must work without restarting the app.
     const first = await ocr.recognize(loadFixture('map-name-crop-freddy-fazbears-pizza.png'));
     assert.ok(first.items.length > 0);
 
@@ -67,4 +67,32 @@ test('serves concurrent calls without interleaving (one inference at a time)', a
     assert.match(results[0].text, /FORGOTTEN\s*RUINS/i);
     assert.match(results[1].text, /FREDDY\s*FAZBEAR/i);
     assert.match(results[2].text, /FORGOTTEN\s*RUINS/i);
+});
+
+test('runs inference off the calling thread and matches the in-process engine', async (t) => {
+    if (SKIP) return t.skip(SKIP);
+    const local = new OcrService({ modelsDir: require('../helpers/ocr').MODELS_DIR, language: FIXTURE_LANGUAGE, inProcess: true });
+    try {
+        const frame = loadFixture('map-name-crop-forgotten-ruins.png');
+        const [inWorker, inProcess] = [await ocr.recognize(frame), await local.recognize(frame)];
+        assert.ok(ocr._worker, 'the default service must use a worker thread');
+        assert.equal(local._worker, null);
+        assert.equal(inWorker.text, inProcess.text);
+        assert.deepEqual(inWorker.items.map(i => i.text), inProcess.items.map(i => i.text));
+    } finally {
+        await local.close();
+    }
+});
+
+test('a crashed worker fails its pending call with OCR_WORKER_FAILED and the next call starts a new one', async (t) => {
+    if (SKIP) return t.skip(SKIP);
+    const frame = loadFixture('map-name-crop-forgotten-ruins.png');
+    await ocr.recognize(frame);
+    const pending = ocr.recognize(frame);
+    // Let the crop finish and the request reach the worker, then kill it.
+    while (ocr._pending.size === 0) await new Promise(r => setImmediate(r));
+    await ocr._worker.terminate();
+    await assert.rejects(pending, err => err.code === 'OCR_WORKER_FAILED');
+    const again = await ocr.recognize(frame);
+    assert.match(again.text, /FORGOTTEN\s*RUINS/i);
 });

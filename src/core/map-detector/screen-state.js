@@ -1,6 +1,6 @@
 'use strict';
 
-const sharp = require('sharp');
+const { toSharp, frameSize } = require('../ocr/frame');
 
 const BAR_SCAN_Y_START_FRAC = 0.75;   // search bottom 25% of the frame
 const BAR_SCAN_X_START_FRAC = 0.15;   // ...within the middle 70% of its width
@@ -44,24 +44,31 @@ const PLATEAU_MIN_HEIGHT_FRAC = 0.005;
  * of text. Color-agnostic by design -- it only looks at luma, so an event's
  * reskinned red/orange/green loading screen reads the same as the default
  * black one.
- * @param {Buffer} pngBuffer
+ * @param {Buffer|{data: Buffer, width: number, height: number}} frame encoded image or raw capture (see ocr/frame.js)
  * @returns {Promise<boolean>}
  */
-async function hasFilledProgressBar(pngBuffer) {
-    const { data, info } = await sharp(pngBuffer).greyscale().raw().toBuffer({ resolveWithObject: true });
-    const { width, height } = info;
+async function hasFilledProgressBar(frame) {
+    const { width, height } = await frameSize(frame);
 
     const yStart = Math.floor(height * BAR_SCAN_Y_START_FRAC);
     const xStart = Math.floor(width * BAR_SCAN_X_START_FRAC);
     const xEnd = Math.floor(width * BAR_SCAN_X_END_FRAC);
     const rowWidth = xEnd - xStart;
-    if (rowWidth <= 0) return false;
+    if (rowWidth <= 0 || height - yStart <= 0) return false;
+
+    // Only the scanned band is decoded to greyscale: a quarter of the rows and
+    // 70% of the columns, instead of the whole 4K frame every idle tick.
+    const { data } = await toSharp(frame)
+        .extract({ left: xStart, top: yStart, width: rowWidth, height: height - yStart })
+        .greyscale()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
 
     const fracs = [];
-    for (let y = yStart; y < height; y++) {
+    for (let row = 0; row < height - yStart; row++) {
         let bright = 0;
-        const rowOffset = y * width;
-        for (let x = xStart; x < xEnd; x++) {
+        const rowOffset = row * rowWidth;
+        for (let x = 0; x < rowWidth; x++) {
             if (data[rowOffset + x] > BAR_BRIGHT_PIXEL_THRESHOLD) bright++;
         }
         fracs.push(bright / rowWidth);

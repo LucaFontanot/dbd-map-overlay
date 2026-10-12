@@ -6,8 +6,8 @@
  * and fires `show-map-command` when a known realm+map pair is recognised in
  * any supported locale.
  *
- * OCR runs in this process through PaddleOCR (onnxruntime-node, see
- * src/core/ocr/): one shared detection model plus the recognition model for the
+ * OCR runs in the main process, on a worker thread, through PaddleOCR
+ * (onnxruntime-node, see src/core/ocr/): one shared detection model plus the recognition model for the
  * language the user picked in Settings. Model archives are downloaded once into
  * <userData>/ocr-models (the tessdata cache of the tesseract era). The crop is
  * fed to the engine untouched — PaddleOCR's own pre-processing reads the game's
@@ -16,6 +16,8 @@
  * Detection uses an automatic, always-on DetectionStateMachine
  * (IDLE → HUNTING → MATCH_ACTIVE) that stays cheap while idle and only runs
  * the full OCR pipeline while a match is loading.
+ * The ONNX sessions stay loaded for as long as detection is on (across matches
+ * and manual map changes) and are released only by stopAutomatic().
  *
  * IPC handles exposed to the renderer:
  *   map-detector-status           → returns Boolean (is the automatic loop running)
@@ -27,24 +29,25 @@
 const { ipcMain, app } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const sharp = require('sharp');
 const { Window } = require('node-screenshots');
 const { OcrMatcher } = require('./map-detector/ocr-matcher');
 const { hasFilledProgressBar } = require('./map-detector/screen-state');
-const { EndgameDetector, ROI_X_START_FRAC: ENDGAME_ROI_X, ROI_Y_START_FRAC: ENDGAME_ROI_Y } = require('./map-detector/endgame-detector');
+const { EndgameDetector, ROI: ENDGAME_ROI } = require('./map-detector/endgame-detector');
 const { LobbyClassifier } = require('./map-detector/lobby-classifier');
 const { DetectionStateMachine } = require('./map-detector/detection-state-machine');
 const { FALLBACK_REALMS } = require('./map-detector/fallback-realms');
 const { computeMapNameFolds, isRealRealmFolder } = require('./map-detector/realm-catalog');
-const { OcrService } = require('./ocr/ocr-service');
+const { MAP_NAME_ROI } = require('./map-detector/rois');
+const { OcrService, ERROR_CODES } = require('./ocr/ocr-service');
+const { toSharp, frameSize, cropRect } = require('./ocr/frame');
+const { foldName } = require('./map-match');
 
 const debug = process.env.DEBUG === 'true';
 
-// Where the game prints the map/realm name, as a fraction of the frame.
-// 85% width: a narrower crop clips long titles that wrap onto a second line at
-// higher UI Scale settings (e.g. "Raccoon City Police Station" is one line at
-// 70% but wraps to two at 100%).
-const MAP_NAME_ROI = { x: 0, y: 0.65, width: 0.85, height: 0.30 };
+const isDbdTitle = (title) => {
+    const lower = (title || '').toLowerCase();
+    return lower.includes('deadbydaylight') || lower.includes('dead by daylight');
+};
 
 // ─── Class ───────────────────────────────────────────────────────────────────
 
@@ -103,6 +106,21 @@ class MapDetector {
         /** @type {DetectionStateMachine|null} */
         this._stateMachine = null;
 
+        /**
+         * Bumped by startAutomatic()/stopAutomatic(). Callbacks wired into a state
+         * machine check it, so an OCR read that completes after detection was
+         * switched off (or restarted) cannot put a map up.
+         */
+        this._generation = 0;
+
+        /** Last model status sent to the UI, so a later recovery can clear a stale error. */
+        this._lastModelState = null;
+
+        /** @type {import('node-screenshots').Window|null} the DBD window found last tick */
+        this._dbdWindow = null;
+        /** Last window-lookup outcome, logged only when it changes. */
+        this._captureLog = null;
+
         this._loadI18n();
         this._setupIPC();
     }
@@ -142,9 +160,10 @@ class MapDetector {
                     this.reverseI18n.set(localizedValue.toLowerCase().trim(), englishKey);
                     // english → english    (handles EN players with no translation)
                     this.reverseI18n.set(englishKey.toLowerCase().trim(), englishKey);
-                    // normalized → english  (handles OCR dropping apostrophes/accents)
-                    const normLocalized = localizedValue.toLowerCase().trim().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
-                    const normEnglish = englishKey.toLowerCase().trim().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+                    // normalized → english  (handles OCR dropping apostrophes/accents);
+                    // folded with map-match's foldName, the same one OcrMatcher applies to OCR lines
+                    const normLocalized = foldName(localizedValue);
+                    const normEnglish = foldName(englishKey);
                     if (normLocalized.length > 2 && !this.normalizedI18n.has(normLocalized)) this.normalizedI18n.set(normLocalized, englishKey);
                     if (normEnglish.length > 2 && !this.normalizedI18n.has(normEnglish)) this.normalizedI18n.set(normEnglish, englishKey);
                 }
@@ -225,14 +244,47 @@ class MapDetector {
      * Tells the settings UI what the engine is doing. A first run has to fetch a
      * model before detection works at all, and a failed download used to be
      * visible only in the console — indistinguishable from "detection is broken".
-     * @param {{state: 'downloading'|'ready'|'error', modelId?: string, message: string}} status
+     *
+     * `code` (on errors) tells the causes apart: OCR_NATIVE_LOAD_FAILED (the
+     * onnxruntime native library did not load — on Windows usually the missing
+     * Microsoft Visual C++ Redistributable; retrying never helps),
+     * OCR_MODEL_DOWNLOAD_FAILED, OCR_MODEL_CORRUPT (deleted, re-downloaded on the
+     * next try), OCR_WORKER_FAILED (the inference thread died; the next call
+     * starts a new one), or OCR_ERROR for anything else.
+     * @param {{state: 'downloading'|'ready'|'error', code?: string, modelId?: string, message: string}} status
      */
     _sendModelStatus(status) {
+        this._lastModelState = status.state;
         this.mainWindow.send('map-detector-model-status', status);
+    }
+
+    /** @param {Error} err */
+    _sendModelError(err) {
+        const code = err && err.code && Object.values(ERROR_CODES).includes(err.code) ? err.code : 'OCR_ERROR';
+        const messages = {
+            [ERROR_CODES.NATIVE_LOAD_FAILED]: `The OCR engine could not start on this system (${err.message}). On Windows, install the latest Microsoft Visual C++ Redistributable (x64) and restart the app.`,
+            [ERROR_CODES.MODEL_DOWNLOAD_FAILED]: `Could not download the OCR model for your game language (${err.message}). Detection will stay off until the download succeeds — check your connection and toggle auto-detect again.`,
+            [ERROR_CODES.WORKER_FAILED]: `The OCR engine stopped unexpectedly (${err.message}). Toggle auto-detect to restart it.`,
+            [ERROR_CODES.MODEL_CORRUPT]: `The OCR model on disk was damaged and has been removed (${err.message}). It will be downloaded again — toggle auto-detect to retry.`,
+        };
+        this._sendModelStatus({
+            state: 'error',
+            code,
+            message: messages[code] || `The OCR engine failed (${err.message}).`,
+        });
+    }
+
+    /** OCR worked after an earlier failure: clear the stale error in the UI. */
+    _noteOcrWorking() {
+        if (this._lastModelState === 'error') {
+            this._sendModelStatus({ state: 'ready', message: 'OCR models ready.' });
+        }
     }
 
     async _ensureStateMachine() {
         if (this._stateMachine) return this._stateMachine;
+        const generation = this._generation;
+        const live = () => generation === this._generation;
 
         this._endgameDetector = new EndgameDetector(this.ocr, [...this.continueKeywords]);
         this._lobbyClassifier = new LobbyClassifier(this.ocr);
@@ -240,22 +292,30 @@ class MapDetector {
         this._stateMachine = new DetectionStateMachine({
             captureFrame: () => this._captureDBD(),
             hasFilledProgressBar,
-            isCustomLobby: (frame) => this._lobbyClassifier.isCustomLobby(frame),
+            isCustomLobby: async (frame) => {
+                const custom = await this._lobbyClassifier.isCustomLobby(frame);
+                this._noteOcrWorking();
+                return custom;
+            },
             recognizeMapText: async (frame) => this._recognizeMapText(frame),
             detectEndgame: async (frame) => {
-                if (debug) await this._saveDebugEndgameCrop(frame);
-                return this._endgameDetector.detectEndgame(frame);
+                if (debug) await this._saveDebugCrop(frame, ENDGAME_ROI, 'endgame-crop');
+                const endgame = await this._endgameDetector.detectEndgame(frame);
+                this._noteOcrWorking();
+                return endgame;
             },
             onMapDetected: (detectionKey) => {
+                if (!live()) return;
                 console.log(`MapDetector: matched -> ${detectionKey}`);
                 this.mainWindow.send('show-map-command', detectionKey.replace(/'/g, '').trim());
             },
             onMatchEnded: () => {
+                if (!live()) return;
                 console.log('MapDetector: endgame screen detected, clearing overlay');
                 this.mainWindow.send('map-detector-clear');
-                // Free the ONNX sessions between matches; they reload from disk in
-                // a few hundred ms at the next loading screen.
-                this.ocr.dispose();
+                // The ONNX sessions stay loaded between matches: recreating them on
+                // every loading screen cost more than keeping them. They are only
+                // released when detection is switched off (stopAutomatic).
             },
             detectInCustoms: () => this.settings.get('detectInCustoms') !== false,
             idlePollMs: 1500,
@@ -270,84 +330,106 @@ class MapDetector {
 
     /** Starts the always-on, low-cost automatic detection loop. Safe to call multiple times. */
     async startAutomatic() {
+        // stopAutomatic() bumps the generation, so everything wired up from here
+        // on belongs to this run only.
+        const generation = this._generation;
         const sm = await this._ensureStateMachine();
         sm.start();
         // Warm the models up in parallel with the loop: a first run downloads them,
         // and the loop's own OCR call would otherwise wait on the same download
         // while holding up the settings UI.
         this.ocr.prepare(this._language()).then(() => {
+            if (generation !== this._generation) return;
             this._sendModelStatus({ state: 'ready', message: 'OCR models ready.' });
         }).catch(err => {
+            if (generation !== this._generation) return;
             console.error('MapDetector: OCR model preparation failed:', err.message);
-            this._sendModelStatus({
-                state: 'error',
-                message: `Could not download the OCR model for your game language (${err.message}). Detection will stay off until the download succeeds — check your connection and toggle auto-detect again.`,
-            });
+            this._sendModelError(err);
         });
     }
 
     /**
-     * Stops the automatic loop and releases the OCR sessions, so a later
-     * startAutomatic() rebuilds everything fresh rather than reusing (or leaking) it.
+     * Stops the automatic loop and releases the OCR sessions (detection switched
+     * off, or the game language changed), so a later startAutomatic() rebuilds
+     * everything fresh rather than reusing (or leaking) it. Returns without
+     * waiting for an in-flight frame or a model download (see OcrService.dispose).
      */
     async stopAutomatic() {
+        this._generation++;
         if (this._stateMachine) this._stateMachine.stop();
         this._stateMachine = null;
         this._endgameDetector = null;
         this._lobbyClassifier = null;
+        this._dbdWindow = null;
         await this.ocr.dispose();
     }
 
-    /**
-     * Captures a thumbnail of the DeadByDaylight window.
-     * @returns {Electron.NativeImage | null}
-     */
-    async _captureDBD() {
-        const start = performance.now();
+    /** Logs a window-lookup outcome only when it differs from the previous tick's. */
+    _logCapture(state, message) {
+        if (this._captureLog === state) return;
+        this._captureLog = state;
+        console.log(`MapDetector: ${message}`);
+    }
 
+    /** @returns {import('node-screenshots').Window|null} the DBD window, from the cache when still valid */
+    _findDbdWindow() {
+        if (this._dbdWindow) {
+            try {
+                if (isDbdTitle(this._dbdWindow.title())) return this._dbdWindow;
+            } catch {
+                // the window is gone: fall through to a fresh enumeration
+            }
+            this._dbdWindow = null;
+        }
         const windows = Window.all();
-
-        console.log(
-            `MapDetector: found ${windows.length} window(s): ${
-                windows.map(w => w.title?.() || '[unknown]').join(', ')
-            }`
-        );
-
         const window = windows.find(w => {
-            const title = (w.title?.() || '').toLowerCase();
-
-            return (
-                title.includes('deadbydaylight') ||
-                title.includes('dead by daylight')
-            );
-        });
-
+            try { return isDbdTitle(w.title()); } catch { return false; }
+        }) || null;
         if (!window) {
-            console.log('MapDetector: DBD window not found');
+            this._logCapture('missing', `DBD window not found among ${windows.length} window(s): ${windows.map(w => { try { return w.title() || '[untitled]'; } catch { return '[unknown]'; } }).join(', ')}`);
             return null;
         }
-
-        console.log(
-            `MapDetector: capturing DBD window "${window.title?.()}" (${window.width()}x${window.height()})`
-        );
-
-        const image = await window.captureImage();
-        const buffer = await image.toPng();
-
-        console.log(`MapDetector: window capture took ${performance.now() - start} ms`);
-
-        return buffer;
+        this._dbdWindow = window;
+        return window;
     }
 
     /**
-     * @param {Buffer} fullFrameBuffer
+     * Captures the DeadByDaylight window as a raw RGBA frame
+     * ({data, width, height, channels}): no PNG encode here and decode in every
+     * consumer, sharp reads the pixels directly (see ocr/frame.js).
+     * @returns {Promise<{data: Buffer, width: number, height: number, channels: number}|null>}
+     */
+    async _captureDBD() {
+        const start = performance.now();
+        const window = this._findDbdWindow();
+        if (!window) return null;
+
+        let image;
+        try {
+            image = await window.captureImage();
+        } catch (err) {
+            // A stale handle (window closed/recreated between ticks): look it up again next tick.
+            this._dbdWindow = null;
+            this._logCapture('error', `DBD window capture failed (${err.message})`);
+            return null;
+        }
+        const data = await image.toRaw();
+        const frame = { data, width: image.width, height: image.height, channels: 4 };
+        this._logCapture(`ok:${frame.width}x${frame.height}`, `capturing DBD window "${window.title()}" (${frame.width}x${frame.height}), first capture took ${Math.round(performance.now() - start)} ms`);
+        debug && console.log(`MapDetector: window capture took ${Math.round(performance.now() - start)} ms`);
+        return frame;
+    }
+
+    /**
+     * @param {Buffer|object} frame encoded image or raw capture (see ocr/frame.js)
      * @returns {Promise<{realm: string|null, map: string}|null>}
      */
-    async _recognizeMapText(fullFrameBuffer) {
-        if (debug) await this._saveDebugCrop(fullFrameBuffer);
+    async _recognizeMapText(frame) {
+        if (debug) await this._saveDebugCrop(frame, MAP_NAME_ROI, 'crop');
 
         const started = performance.now();
-        const { items } = await this.ocr.recognize(fullFrameBuffer, { roi: MAP_NAME_ROI });
+        const { items } = await this.ocr.recognize(frame, { roi: MAP_NAME_ROI });
+        this._noteOcrWorking();
         const lines = items.map(i => i.text.trim()).filter(text => text.length > 3);
         console.log(`MapDetector: OCR in ${Math.round(performance.now() - started)} ms, lines: ${lines.length ? lines.join(' | ') : '<none>'}`);
         if (!lines.length) return null;
@@ -355,63 +437,30 @@ class MapDetector {
         return this.ocrMatcher.matchLines(lines);
     }
 
-    /** Opt-in only (DEBUG=true). Writes to userData, never process.cwd(). */
-    async _saveDebugCrop(fullFrameBuffer) {
+    /** Opt-in only (DEBUG=true). Writes the OCR'd region to userData, never process.cwd(). */
+    async _saveDebugCrop(frame, roi, suffix) {
         try {
-            const meta = await sharp(fullFrameBuffer).metadata();
+            const { width, height } = await frameSize(frame);
             const debugDir = path.join(app.getPath('userData'), 'debug-crops');
             fs.mkdirSync(debugDir, { recursive: true });
             const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-            await sharp(fullFrameBuffer)
-                .extract({
-                    left: 0,
-                    top: Math.floor(meta.height * MAP_NAME_ROI.y),
-                    width: Math.floor(meta.width * MAP_NAME_ROI.width),
-                    height: Math.floor(meta.height * MAP_NAME_ROI.height),
-                })
-                .toFile(path.join(debugDir, `${stamp}-crop.png`));
-            console.log(`MapDetector: [DEBUG] saved crop image to ${debugDir} (${stamp}-crop.png)`);
+            const file = `${stamp}-${suffix}.png`;
+            await toSharp(frame).extract(cropRect(width, height, roi)).png().toFile(path.join(debugDir, file));
+            console.log(`MapDetector: [DEBUG] saved ${suffix} image to ${debugDir} (${file})`);
         } catch (err) {
-            console.warn('MapDetector: [DEBUG] failed to save debug crop:', err.message);
-        }
-    }
-
-    /** Opt-in only (DEBUG=true). Same as _saveDebugCrop, for the endgame-check ROI. */
-    async _saveDebugEndgameCrop(fullFrameBuffer) {
-        try {
-            const meta = await sharp(fullFrameBuffer).metadata();
-            const left = Math.floor(meta.width * ENDGAME_ROI_X);
-            const top = Math.floor(meta.height * ENDGAME_ROI_Y);
-            const debugDir = path.join(app.getPath('userData'), 'debug-crops');
-            fs.mkdirSync(debugDir, { recursive: true });
-            const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-            await sharp(fullFrameBuffer)
-                .extract({left, top, width: meta.width - left, height: meta.height - top})
-                .toFile(path.join(debugDir, `${stamp}-endgame-crop.png`));
-            console.log(`MapDetector: [DEBUG] saved endgame-check crop to ${debugDir} (${stamp}-endgame-crop.png)`);
-        } catch (err) {
-            console.warn('MapDetector: [DEBUG] failed to save endgame crop:', err.message);
+            console.warn(`MapDetector: [DEBUG] failed to save ${suffix} image:`, err.message);
         }
     }
 
     // ── Public ────────────────────────────────────────────────────────────────
 
     /**
-     * Ensures the OCR models for the configured language are on disk (downloading
-     * them on first use). Safe to call multiple times.
-     */
-    async start() {
-        await this.ocr.prepare(this._language());
-    }
-
-    /**
-     * Releases the OCR sessions. Called on every manual map change, so this is
-     * also where the running state machine learns that the overlay now shows the
-     * user's own pick and must survive the match ending.
+     * Called on every manual map change: the running state machine learns that
+     * the overlay now shows the user's own pick and must survive the match
+     * ending. Detection keeps running and the OCR sessions stay loaded.
      */
     async stop() {
         if (this._stateMachine) this._stateMachine.releaseOverlay();
-        await this.ocr.dispose();
     }
 }
 

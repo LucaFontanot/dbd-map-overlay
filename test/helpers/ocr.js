@@ -23,7 +23,7 @@ const MODELS_DIR = defaultModelsDir();
 function missingModelsReason(language = FIXTURE_LANGUAGE) {
     const store = new ModelStore(MODELS_DIR);
     for (const key of recognitionModelsFor(language)) {
-        const missing = assetsForRecognitionKey(key).filter(asset => !store.has(asset.id));
+        const missing = assetsForRecognitionKey(key).filter(asset => !store.has(asset));
         if (missing.length > 0) {
             return `OCR models missing from ${MODELS_DIR} (${missing.map(a => a.id).join(', ')}); run "node scripts/ocr-test.js test/fixtures/map-detector/map-name-crop-forgotten-ruins.png" once to download them`;
         }

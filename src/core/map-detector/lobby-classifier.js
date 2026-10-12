@@ -66,4 +66,4 @@ class LobbyClassifier {
     }
 }
 
-module.exports = { LobbyClassifier, looksLikePlayerName };
+module.exports = { LobbyClassifier, looksLikePlayerName, ROI };

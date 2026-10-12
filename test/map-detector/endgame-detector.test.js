@@ -115,5 +115,8 @@ test('detects the endgame screen quickly (small bounded ROI, not a full-frame OC
     const t0 = Date.now();
     await detector.detectEndgame(load('endgame-public-scoreboard.png'));
     const elapsed = Date.now() - t0;
-    assert.ok(elapsed < 400, `expected a fast small-ROI OCR pass (<400ms), took ${elapsed}ms`);
+    // ~230 ms alone vs ~1.5 s for a full-frame pass on this 4K fixture. 400 ms
+    // flaked under `node --test` running the other OCR suites in parallel; 800 ms
+    // still fails a full-frame regression by a wide margin.
+    assert.ok(elapsed < 800, `expected a fast small-ROI OCR pass (<800ms), took ${elapsed}ms`);
 });
