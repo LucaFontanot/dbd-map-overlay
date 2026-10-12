@@ -142,11 +142,14 @@ export const lobby = {
             }
             if (data.type === 'standard') {
                 if (remote.map === data.map) return;
+                // Marked before any await: overlapping polls (timer + hotkey)
+                // must not apply the same change twice or out of order
+                remote.map = data.map;
                 await catalog.whenLoaded();
+                if (remote.map !== data.map) return;
                 // Only maps we have downloaded are shown ("" hides the
                 // overlay); never pass an arbitrary server path on.
                 const localPath = data.map === '' ? '' : catalog.resolveLocalMapPath(data.map);
-                remote.map = data.map;
                 if (localPath === null) {
                     debugLog('lobby::checkUpdate::unknown-map', String(data.map).slice(0, 200));
                     return;
@@ -155,12 +158,17 @@ export const lobby = {
                 await player.sendMap(localPath, 'standard', false);
             } else if (data.type === 'custom') {
                 if (remote.lastMapUser === data.last_changer || remote.mapBase64Hash === data.map64hash) return;
+                const previousHash = remote.mapBase64Hash;
+                remote.mapBase64Hash = data.map64hash;
+                remote.map = '';
                 const image = await dbd.invoke('lobby-custom-image', state.id);
-                if (image && image.ok && typeof image.map === 'string' && image.map !== '') {
-                    remote.mapBase64Hash = data.map64hash;
-                    remote.map = '';
-                    await player.sendMap(image.map, 'base64', false);
+                if (remote.mapBase64Hash !== data.map64hash) return;
+                if (!image || !image.ok || typeof image.map !== 'string' || image.map === '') {
+                    // Retry on the next poll
+                    remote.mapBase64Hash = previousHash;
+                    return;
                 }
+                await player.sendMap(image.map, 'base64', false);
             }
         } catch (e) {
             debugLog('lobby::checkUpdate::error', e.message);

@@ -12,5 +12,6 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
 });
 
 export function renderMarkdown(markdown) {
-    return DOMPurify.sanitize(marked.parse(String(markdown || '')));
+    // No inline styles: docs must not restyle the app
+    return DOMPurify.sanitize(marked.parse(String(markdown || '')), {FORBID_ATTR: ['style']});
 }

@@ -123,6 +123,8 @@ scripts/localization/             → Localization tooling (i18n extraction/merg
 ```bash
 yarn start              # Build the renderer (Vite) and run in dev mode
 npm run dev:renderer    # Rebuild the renderer on change (run electron . alongside)
+# electron-builder 26 needs Node >= 20.19 (require(esm) of @noble/hashes); on an older system Node:
+npx -y node@22 node_modules/electron-builder/cli.js --linux dir   # unpacked build in dist/linux-unpacked
 yarn build              # Build Windows + Linux (calls prebuild.sh first)
 yarn build:win          # Windows only
 yarn build:linux        # Linux only

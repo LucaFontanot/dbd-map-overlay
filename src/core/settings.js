@@ -38,9 +38,9 @@ const isPercentOrNull = (v) => v === null || (isFiniteNumber(v) && v >= 0 && v <
 // Keys the renderer may write, with their validator. Everything else (token,
 // id, overlayX/Y, hotkey accelerators) is written by main only.
 const RENDERER_WRITABLE = {
-    size: isNumberish,
-    position: isNumberish,
-    opacity: isNumberish,
+    size: (v) => isNumberish(v) && Number(v) >= 50 && Number(v) <= 500,
+    position: (v) => isNumberish(v) && [1, 2, 3, 4].includes(Number(v)),
+    opacity: (v) => isNumberish(v) && Number(v) >= 0.1 && Number(v) <= 1,
     draggable: isBool,
     hideOverlay: isBool,
     minimizeToTray: isBool,

@@ -155,7 +155,8 @@ async function write(key, value) {
 
 async function saveNow(key, value) {
   await write(key, value);
-  player.refresh();
+  // Rotation is shared with the lobby, the other overlay settings are local
+  player.refresh({lobby: key === 'rotation'});
 }
 
 // Sliders: while dragging, the value goes to main at most every 60 ms (main

@@ -18,8 +18,13 @@ function sha256(data) {
     return crypto.createHash('sha256').update(data).digest('hex');
 }
 
-/** @returns {number|null} the answer whose hash starts with `conf.nonce` */
-function computeNonce(conf) {
+// Hashes per slice before yielding: difficulty 6 is ~16M hashes, which would
+// freeze main (every window, IPC and the overlay) for tens of seconds.
+const YIELD_EVERY = 20000;
+const yieldToLoop = () => new Promise(resolve => setImmediate(resolve));
+
+/** @returns {Promise<number|null>} the answer whose hash starts with `conf.nonce` */
+async function computeNonce(conf) {
     const nonce = conf.nonce ? String(conf.nonce) : '0';
     const data = conf.data ? String(conf.data) : '';
     let difficulty = parseInt(conf.difficulty, 10);
@@ -28,6 +33,7 @@ function computeNonce(conf) {
     if (difficulty > MAX_DIFFICULTY || nonce.length !== difficulty) return null;
     for (let answer = 0; answer < MAX_ITERATIONS; answer++) {
         if (sha256(data + answer).substring(0, difficulty) === nonce) return answer;
+        if (answer % YIELD_EVERY === YIELD_EVERY - 1) await yieldToLoop();
     }
     return null;
 }
@@ -101,7 +107,7 @@ class API {
             return '-1';
         }
         if (!payload || typeof payload !== 'object') return '-1';
-        const answer = computeNonce(payload);
+        const answer = await computeNonce(payload);
         if (answer === null) return '-1';
         header += `token="${payload.token}" `;
         header += `answer="${answer}"`;

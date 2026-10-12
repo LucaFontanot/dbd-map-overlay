@@ -79,7 +79,10 @@ class PhotoSync {
         try {
             this.progress('Checking map catalog');
             const res = await axios.get(`${ASSETS_BASE}/images.json?t=${Date.now()}`, {timeout: DOWNLOAD_TIMEOUT_MS});
-            catalog = (Array.isArray(res.data) ? res.data : []).map(parseCatalogEntry).filter(Boolean);
+            const raw = Array.isArray(res.data) ? res.data : [];
+            catalog = raw.map(parseCatalogEntry).filter(Boolean);
+            // A row we can't parse may still name a local file: never delete then
+            this.catalogComplete = catalog.length === raw.length;
         } catch (e) {
             console.warn('photo-sync: catalog unavailable:', e.message);
             this.progress(null);
@@ -95,7 +98,8 @@ class PhotoSync {
         const local = await UserData.computePhotoHashes(root);
         const wanted = new Set(catalog.map(entry => entry.key));
         let deleted = 0;
-        for (const key of Object.keys(local)) {
+        if (!this.catalogComplete) console.warn('photo-sync: malformed catalog rows, skipping deletions');
+        for (const key of this.catalogComplete ? Object.keys(local) : []) {
             if (wanted.has(normalizePhotoKey(key))) continue;
             try {
                 await fs.promises.rm(safeJoin(root, key), {force: true});

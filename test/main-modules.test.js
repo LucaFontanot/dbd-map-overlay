@@ -9,17 +9,17 @@ const {RENDERER_WRITABLE} = require('../src/core/settings');
 
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
-test('computeNonce finds an answer whose hash starts with the nonce', () => {
+test('computeNonce finds an answer whose hash starts with the nonce', async () => {
     const data = 'abc';
     const nonce = sha(data + 42).slice(0, 2);
-    const answer = computeNonce({data, nonce, difficulty: 2});
+    const answer = await computeNonce({data, nonce, difficulty: 2});
     assert.ok(answer !== null);
     assert.strictEqual(sha(data + answer).slice(0, 2), nonce);
 });
 
-test('computeNonce refuses mismatched or excessive difficulty', () => {
-    assert.strictEqual(computeNonce({data: 'x', nonce: 'abc', difficulty: 2}), null);
-    assert.strictEqual(computeNonce({data: 'x', nonce: '0000000', difficulty: 7}), null);
+test('computeNonce refuses mismatched or excessive difficulty', async () => {
+    assert.strictEqual(await computeNonce({data: 'x', nonce: 'abc', difficulty: 2}), null);
+    assert.strictEqual(await computeNonce({data: 'x', nonce: '0000000', difficulty: 7}), null);
 });
 
 test('redact hides the token and long payloads', () => {
@@ -62,6 +62,9 @@ test('renderer may only write whitelisted settings with valid values', () => {
     assert.ok(!('overlayX' in RENDERER_WRITABLE));
     assert.ok(RENDERER_WRITABLE.size('250'));
     assert.ok(RENDERER_WRITABLE.size(250));
+    assert.ok(!RENDERER_WRITABLE.size(1e9));
+    assert.ok(!RENDERER_WRITABLE.opacity(-5));
+    assert.ok(!RENDERER_WRITABLE.position(9));
     assert.ok(!RENDERER_WRITABLE.size('abc'));
     assert.ok(RENDERER_WRITABLE.rotation(270));
     assert.ok(!RENDERER_WRITABLE.rotation(360));

@@ -135,7 +135,8 @@ async function toggleDetection(on) {
 
 function openObs() {
   dbd.send('obs-open');
-  player.sendMap(player.state.lastMap, player.state.lastMapType);
+  // Re-apply only: opening OBS must not stop auto-detect
+  player.refresh();
 }
 
 // Sample map on the overlay only while the Overlay settings tab is on screen

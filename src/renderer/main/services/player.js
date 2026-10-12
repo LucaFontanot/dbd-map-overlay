@@ -77,31 +77,37 @@ export const player = {
         // sample map on screen -- it is recorded above and re-covered here.
         if (state.previewActive) sendPreview();
         if (api) {
-            if (type === 'custom') {
+            // Hiding is "" for every type: never read the custom dir itself
+            if (map === '') {
+                await lobby.setMap('', 'standard');
+            } else if (type === 'custom') {
                 const data = await dbd.invoke('read-custom-data', map);
                 await lobby.setMap(bytesToBase64(data), type);
-            } else if (type === 'standard' || map === '') {
+            } else if (type === 'standard') {
                 await lobby.setMap(map, 'standard');
             }
         }
         return true;
     },
 
-    hide() {
-        return this.sendMap('', state.lastMapType);
-    },
-
-    /** Hotkey: hide the map, or bring back the last one. */
+    /**
+     * Hide button / hotkey: hide the map, or bring back the last one. Not a
+     * new pick, so auto-detect keeps running (fromDetector).
+     */
     toggle() {
-        if (state.lastMap === '') return this.sendMap(state.lastMapCache, state.lastMapType);
-        return this.sendMap('', state.lastMapType);
+        if (state.lastMap === '') return this.sendMap(state.lastMapCache, state.lastMapType, true, true);
+        return this.sendMap('', state.lastMapType, true, true);
     },
 
-    /** Re-send whatever the overlay should show after a settings change. */
-    refresh() {
+    /**
+     * Re-send whatever the overlay should show after a settings change.
+     * @param {{lobby?: boolean}} opts lobby: also push to the lobby (only
+     *        rotation is shared; slider ticks would flood the server)
+     */
+    refresh({lobby: toLobby = false} = {}) {
         if (state.previewActive) return sendPreview();
         // Re-apply, not a pick: the detector's claim on the overlay must survive
-        return this.sendMap(state.lastMap, state.lastMapType, true, true);
+        return this.sendMap(state.lastMap, state.lastMapType, toLobby, true);
     },
 
     async rotate() {

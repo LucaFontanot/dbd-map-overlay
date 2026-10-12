@@ -50,6 +50,8 @@ function fuzzyTokenScore(queryTokens, candidateTokens) {
 
 const state = reactive({
     loaded: false,
+    // Message when the local map lists could not be read
+    loadError: '',
     // Creator → Realm → [map file names]
     mapDictionary: {},
     creators: [],
@@ -92,10 +94,14 @@ async function load() {
         state.mapDictionary = dictionary;
         state.creators = Object.keys(dictionary);
         state.customMaps = custom;
-        state.loaded = true;
-        resolveLoaded();
+        state.loadError = '';
     } catch (e) {
         debugLog('catalog::load::error', e.message);
+        state.loadError = e.message;
+    } finally {
+        // Waiters (detector, hotkeys, lobby) must never hang on a failed read
+        state.loaded = true;
+        resolveLoaded();
     }
 }
 

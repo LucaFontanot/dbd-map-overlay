@@ -15,6 +15,8 @@
         <v-spacer/>
         <span>Click a map to put it on the overlay</span>
       </div>
+      <v-alert v-if="catalog.state.loadError" type="error" class="mb-4"
+               :text="`Could not read the local maps: ${catalog.state.loadError}`"/>
       <div v-if="results.length" class="grid">
         <MapCard v-for="item in results" :key="item.path" :src="catalog.imageUrl(item.path, undefined, {thumb: true})"
                  :name="stripExt(item.name)" :realm="item.realm" :creator="item.creator"
