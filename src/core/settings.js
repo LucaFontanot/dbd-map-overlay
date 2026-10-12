@@ -24,6 +24,9 @@ const defaultConfig = {
     ocrLanguage: 'all',
     preferredCreator: '',
     detectInCustoms: true,
+    // Off by default: gameplay frames can pass for the end screen / a new
+    // loading screen and wipe the map mid-match (see detection-state-machine.js)
+    endgameDetection: false,
     hotkeyCheckLobby: 'CommandOrControl+P',
     hotkeyToggleMap: 'CommandOrControl+H',
     hotkeyRotateMap: 'CommandOrControl+R'
@@ -53,6 +56,7 @@ const RENDERER_WRITABLE = {
     ocrLanguage: isShortString,
     preferredCreator: isShortString,
     detectInCustoms: isBool,
+    endgameDetection: isBool,
 };
 
 // Never leaves main: the lobby API runs here (src/core/api.js)

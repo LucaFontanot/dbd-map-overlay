@@ -43,7 +43,8 @@ class EndgameDetector {
 
     /**
      * @param {Buffer} pngBuffer full-frame capture
-     * @returns {Promise<{seen: boolean, confident: boolean}>}
+     * @returns {Promise<{seen: boolean, confident: boolean, text: string}>} text: what
+     *          matched, with confidences (diagnostics for false positives)
      */
     async detectEndgame(pngBuffer) {
         const { items } = await this.ocr.recognize(pngBuffer, { roi: ROI });
@@ -53,6 +54,7 @@ class EndgameDetector {
         return {
             seen: matches.length > 0,
             confident: matches.some(item => item.confidence >= CONFIDENT_MIN),
+            text: matches.map(item => `"${item.text}" (${Number(item.confidence).toFixed(2)})`).join(', '),
         };
     }
 }

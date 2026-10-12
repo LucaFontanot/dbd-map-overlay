@@ -1,6 +1,6 @@
 // Local map catalog: downloaded maps (<userData>/photo) + custom maps
 // (<userData>/custom), indexed as Creator → Realm → [file names].
-import {reactive} from 'vue';
+import {reactive, shallowReactive} from 'vue';
 import mapMatch from '@core/map-match.js';
 import {dbd} from './bridge';
 import {debugLog} from './logger';
@@ -59,6 +59,41 @@ const state = reactive({
     // Bumped when custom files change: they can be overwritten under the same name
     customVersion: 0,
 });
+
+// Gallery thumbnails: path → object URL of a small WebP made in this renderer
+// from the file bytes (Chromium's decoder, off the main thread). Built for
+// every map while the startup loading screen is up, like the old blob cache,
+// but downscaled: maps are up to 3840 px and 200 full-size decodes cost
+// hundreds of MB. Never sharp in main: on Linux its addon binds GLib calls to
+// Chromium's system GLib and crashes Electron (see user-data.js).
+const THUMB_SIZE = 480;
+const THUMB_WORKERS = 4;
+const thumbs = shallowReactive(new Map());
+
+async function makeThumbnail(path, type) {
+    const bytes = await dbd.invoke(type === 'custom' ? 'read-custom-data' : 'read-photo-data', path);
+    if (!bytes || !bytes.length) return null;
+    let bitmap = await createImageBitmap(new Blob([bytes]));
+    const scale = THUMB_SIZE / Math.max(bitmap.width, bitmap.height);
+    if (scale < 1) {
+        const full = bitmap;
+        bitmap = await createImageBitmap(full, {
+            resizeWidth: Math.max(1, Math.round(full.width * scale)),
+            resizeHeight: Math.max(1, Math.round(full.height * scale)),
+            resizeQuality: 'high',
+        });
+        full.close();
+    }
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    canvas.getContext('2d').drawImage(bitmap, 0, 0);
+    bitmap.close();
+    return URL.createObjectURL(await canvas.convertToBlob({type: 'image/webp', quality: 0.82}));
+}
+
+function dropThumbnail(path) {
+    URL.revokeObjectURL(thumbs.get(path));
+    thumbs.delete(path);
+}
 
 // Not reactive: large lookup tables only read imperatively
 let pathLookup = {};
@@ -121,7 +156,46 @@ export const catalog = {
     /** Custom maps changed on disk: re-read the lists, drop cached custom images. */
     async reload() {
         state.customVersion++;
+        // Custom files can be overwritten under the same name: never reuse their thumbnails
+        for (const path of [...thumbs.keys()]) {
+            if (customPaths.has(path)) dropThumbnail(path);
+        }
         await this.load();
+        await this.buildThumbnails();
+    },
+
+    /**
+     * Makes the missing gallery thumbnails and drops those of files that are
+     * gone. A map that cannot be decoded keeps no entry (thumbUrl falls back).
+     * @param {(done: number, total: number) => void} [onProgress]
+     */
+    async buildThumbnails(onProgress) {
+        const present = new Set(Object.values(pathLookup));
+        for (const path of [...thumbs.keys()]) {
+            if (!present.has(path)) dropThumbnail(path);
+        }
+        const queue = [...present].filter(path => !thumbs.has(path));
+        const total = queue.length;
+        let done = 0;
+        const worker = async () => {
+            while (queue.length) {
+                const path = queue.shift();
+                try {
+                    const url = await makeThumbnail(path, this.typeOf(path));
+                    if (url) thumbs.set(path, url);
+                } catch (e) {
+                    debugLog('catalog::thumbnail::error', path, e.message);
+                }
+                done++;
+                if (onProgress) onProgress(done, total);
+            }
+        };
+        await Promise.all(Array.from({length: THUMB_WORKERS}, worker));
+    },
+
+    /** Gallery image: the cached thumbnail, or the full file if there is none. */
+    thumbUrl(path, type = this.typeOf(path)) {
+        return thumbs.get(path) || this.imageUrl(path, type);
     },
 
     /** "custom" for files in the custom dir, "standard" for downloaded maps. */
@@ -134,18 +208,13 @@ export const catalog = {
         return Object.prototype.hasOwnProperty.call(pathLookup, key) ? pathLookup[key] : null;
     },
 
-    /**
-     * dbd-img:// URL served by main (src/core/user-data.js).
-     * @param {{thumb?: boolean}} opts thumb: small cached WebP for the gallery
-     */
-    imageUrl(path, type = this.typeOf(path), {thumb = false} = {}) {
+    /** Full-size dbd-img:// URL served by main (src/core/user-data.js). */
+    imageUrl(path, type = this.typeOf(path)) {
         const host = type === 'custom' ? 'custom' : 'photo';
         const encoded = normalizePhotoKey(path).split('/').map(encodeURIComponent).join('/');
-        const params = new URLSearchParams();
-        if (thumb) params.set('thumb', '1');
-        if (type === 'custom') params.set('v', String(state.customVersion));
-        const query = params.toString();
-        return `dbd-img://${host}/${encoded}${query ? `?${query}` : ''}`;
+        // Custom files can be overwritten under the same name
+        const query = type === 'custom' ? `?v=${state.customVersion}` : '';
+        return `dbd-img://${host}/${encoded}${query}`;
     },
 
     findClosestMapMatch(mapKey, creatorOverride, opts) {

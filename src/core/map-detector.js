@@ -314,15 +314,18 @@ class MapDetector {
                 console.log(`MapDetector: matched -> ${detectionKey}`);
                 this.mainWindow.send('show-map-command', detectionKey.replace(/'/g, '').trim());
             },
-            onMatchEnded: () => {
+            onMatchEnded: (reason) => {
                 if (!live()) return;
-                console.log('MapDetector: endgame screen detected, clearing overlay');
-                this.mainWindow.send('map-detector-clear');
+                console.log(`MapDetector: match ended (${reason}), clearing overlay`);
+                // The reason lands in the renderer Debug log: it tells a real end
+                // screen from a gameplay false positive
+                this.mainWindow.send('map-detector-clear', String(reason || ''));
                 // The ONNX sessions stay loaded between matches: recreating them on
                 // every loading screen cost more than keeping them. They are only
                 // released when detection is switched off (stopAutomatic).
             },
             detectInCustoms: () => this.settings.get('detectInCustoms') !== false,
+            endgameEnabled: () => this.settings.get('endgameDetection') === true,
             idlePollMs: 1500,
             huntPollMs: 350,
             // Public-match loading screens wait for every player (including the killer) to

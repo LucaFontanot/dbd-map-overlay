@@ -21,7 +21,7 @@
       <div v-if="items.length" class="grid">
         <v-card v-for="item in items" :key="item.path" class="custom-card">
           <div class="thumb">
-            <v-img :src="catalog.imageUrl(item.path, 'custom', {thumb: true})" aspect-ratio="1.333"/>
+            <v-img :src="catalog.thumbUrl(item.path, 'custom')" aspect-ratio="1.333"/>
           </div>
           <div class="d-flex align-center pa-3 ga-2">
             <span class="text-truncate font-weight-medium" :title="item.name">{{ item.name }}</span>

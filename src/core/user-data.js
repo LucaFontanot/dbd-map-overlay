@@ -11,10 +11,6 @@ const path = require("path");
 const IMAGE_SCHEME = "dbd-img";
 const IMAGE_KINDS = new Set(["photo", "custom"]);
 const MAX_CUSTOM_IMAGE_BYTES = 20 * 1024 * 1024;
-// Gallery thumbnails (?thumb): maps are up to 3840 px, decoding 200 of them
-// at full size cost hundreds of MB in the renderer.
-const THUMB_SIZE = 480;
-const thumbJobs = new Map();
 const CUSTOM_NAME = /^[^/\\\0]{1,120}\.png$/;
 
 // Per-file MD5 cache for photo-sync, keyed by relative path → {size, mtimeMs, md5}.
@@ -61,36 +57,6 @@ async function listFiles(dir) {
     return results;
 }
 
-/**
- * WebP thumbnail of `file`, cached under <userData>/thumbs and rebuilt when
- * the source is newer. Concurrent requests for the same file share one job.
- * @returns {Promise<string>} thumbnail path
- */
-async function thumbnailFor(kind, rel, file) {
-    const thumb = safeJoin(path.join(app.getPath('userData'), 'thumbs', kind), rel + '.webp');
-    const [source, cached] = await Promise.all([
-        fs.promises.stat(file),
-        fs.promises.stat(thumb).catch(() => null),
-    ]);
-    if (cached && cached.mtimeMs >= source.mtimeMs) return thumb;
-    if (!thumbJobs.has(thumb)) {
-        const job = (async () => {
-            // Lazy: sharp is heavy and only needed once per new/changed map
-            const sharp = require('sharp');
-            await fs.promises.mkdir(path.dirname(thumb), {recursive: true});
-            const tmp = `${thumb}.${process.pid}.tmp`;
-            await sharp(file)
-                .resize({width: THUMB_SIZE, height: THUMB_SIZE, fit: 'inside', withoutEnlargement: true})
-                .webp({quality: 82})
-                .toFile(tmp);
-            await fs.promises.rename(tmp, thumb);
-            return thumb;
-        })().finally(() => thumbJobs.delete(thumb));
-        thumbJobs.set(thumb, job);
-    }
-    return thumbJobs.get(thumb);
-}
-
 class UserData {
     constructor() {
         const readFile = async (kind, fileName) => {
@@ -112,6 +78,11 @@ class UserData {
 
         // Only custom maps are written/deleted from the renderer; the photo
         // dir belongs to photo-sync.js.
+        // Gallery thumbnails are made from these bytes in the renderer (catalog.js).
+        // Never with sharp in this process: on Linux its addon binds g_object_ref
+        // & co. to Chromium's system GLib instead of libvips' own copy, which
+        // crashes Electron with SIGTRAP under load.
+        ipcMain.handle('read-photo-data', (event, fileName) => readFile("photo", fileName))
         ipcMain.handle('read-custom-data', (event, fileName) => readFile("custom", fileName))
         ipcMain.handle('write-custom-data', async (event, fileName, data) => {
             if (typeof fileName !== 'string' || !CUSTOM_NAME.test(fileName) || fileName.includes('..')) {
@@ -137,6 +108,8 @@ class UserData {
         ipcMain.handle('get-custom-photos', async () => listDir("custom"))
 
         UserData.registerImageProtocol();
+        // Left by the sharp thumbnail cache of earlier builds
+        fs.promises.rm(path.join(app.getPath('userData'), 'thumbs'), {recursive: true, force: true}).catch(() => {});
     }
 
     /**
@@ -156,17 +129,7 @@ class UserData {
                     const rel = decodeURIComponent(url.pathname);
                     const file = safeJoin(baseDir(url.hostname), rel);
                     if (isCacheFile(file)) return new Response(null, {status: 404});
-                    let served = file;
-                    if (url.searchParams.has('thumb')) {
-                        try {
-                            served = await thumbnailFor(url.hostname, rel, file);
-                        } catch (e) {
-                            // Unreadable by sharp: fall back to the original file
-                            if (e.code === 'ENOENT') return new Response(null, {status: 404});
-                            console.warn('dbd-img: thumbnail failed for', rel, e.message);
-                        }
-                    }
-                    return await net.fetch(pathToFileURL(served).toString());
+                    return await net.fetch(pathToFileURL(file).toString());
                 } catch (e) {
                     return new Response(null, {status: 404});
                 }

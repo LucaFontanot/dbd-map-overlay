@@ -157,9 +157,14 @@ class DetectionStateMachine {
 
     /** onMatchEnded (and the overlay clear behind it) only fires for a map the
      *  detector confirmed itself; a hand-picked map survives the match ending. */
-    _endMatch() {
-        if (this._detectorOwnsOverlay) this.deps.onMatchEnded();
+    _endMatch(reason) {
+        if (this._detectorOwnsOverlay) this.deps.onMatchEnded(reason);
         this._detectorOwnsOverlay = false;
+    }
+
+    /** End-of-match detection is opt-in (settings `endgameDetection`). */
+    _endgameEnabled() {
+        return this.deps.endgameEnabled ? this.deps.endgameEnabled() === true : true;
     }
 
     async _runMatchActive(generation) {
@@ -175,15 +180,18 @@ class DetectionStateMachine {
             return;
         }
 
+        const endgameEnabled = this._endgameEnabled();
         const frame = await this.deps.captureFrame();
         if (frame && this._live(generation)) {
-            const endgame = await this.deps.detectEndgame(frame);
+            // Disabled: no end-screen OCR at all; the map stays up until the
+            // next loading screen brings a new one.
+            const endgame = endgameEnabled ? await this.deps.detectEndgame(frame) : {seen: false};
             if (!this._live(generation)) return;
             if (endgame.seen) {
                 if (endgame.confident || this._endgameSeen) {
                     const how = endgame.confident ? 'confident read' : 'confirmed on 2 consecutive reads';
                     console.log(`DetectionStateMachine: MATCH_ACTIVE -> IDLE (endgame screen ${how}${this._detectorOwnsOverlay ? ', clearing overlay' : ' -- overlay untouched, it is not the detector\'s map'})`);
-                    this._endMatch();
+                    this._endMatch(`end screen ${how}: ${endgame.text || '?'}`);
                     this._state = STATE.IDLE;
                     return;
                 }
@@ -201,8 +209,15 @@ class DetectionStateMachine {
             if (!this._live(generation)) return;
             if (loadingScreen) {
                 if (this._matchSeenBright) {
-                    console.log('DetectionStateMachine: MATCH_ACTIVE -> HUNTING (missed the endgame screen, but a fresh loading screen appeared -- treating the previous match as over)');
-                    this._endMatch();
+                    // A dark scene with an action bar (repair/heal/unhook) at the
+                    // bottom can pass for a loading bar; with end-of-match
+                    // detection off this only starts a hunt and never clears the map.
+                    if (endgameEnabled) {
+                        console.log('DetectionStateMachine: MATCH_ACTIVE -> HUNTING (missed the endgame screen, but a fresh loading screen appeared -- treating the previous match as over)');
+                        this._endMatch('loading bar seen during the match (missed end screen)');
+                    } else {
+                        console.log('DetectionStateMachine: MATCH_ACTIVE -> HUNTING (loading screen seen; end-of-match detection off, overlay kept)');
+                    }
                     this._state = STATE.HUNTING;
                     return;
                 }

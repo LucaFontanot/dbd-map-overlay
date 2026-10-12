@@ -209,7 +209,8 @@ export const player = {
             }
             await this.sendMap(path, catalog.typeOf(path));
         });
-        dbd.on('map-detector-clear', () => {
+        dbd.on('map-detector-clear', (reason) => {
+            debugLog('map-detector-clear', reason);
             state.lastLogicalMapKey = '';
             this.sendMap('', state.lastMapType || 'standard', true, true);
         });

@@ -367,3 +367,64 @@ test('stop() + start() leaves exactly one loop running', async () => {
     // One loop: ~25 ms per tick → about 8 captures in 200 ms; two loops would double it.
     assert.ok(captures <= 10, `expected a single loop, saw ${captures} captures`);
 });
+
+test('end-of-match detection off: no end-screen OCR and a confident end screen never clears the map', async () => {
+    let barTick = 0;
+    let endgameCalls = 0;
+    const { deps, calls } = buildDeps({
+        hasFilledProgressBar: async () => barTick++ === 0,
+        recognizeMapText: async () => ({ realm: null, map: 'Blood Lodge' }),
+        detectEndgame: async () => {
+            endgameCalls++;
+            return { seen: true, confident: true, text: '"CONTINUE" (1.00)' };
+        },
+        endgameEnabled: () => false,
+    });
+    const sm = new DetectionStateMachine(deps);
+    sm.start();
+    await sleep(120);
+    assert.equal(sm.state, 'MATCH_ACTIVE');
+    assert.deepEqual(calls.onMapDetected, ['Blood Lodge']);
+    assert.equal(endgameCalls, 0);
+    assert.equal(calls.onMatchEnded.length, 0);
+    sm.stop();
+});
+
+test('end-of-match detection off: a loading bar mid-match starts a hunt but keeps the map', async () => {
+    // Same sequence as the "missed endgame screen" test: bar, gameplay, bar again
+    // (e.g. a repair bar in a dark scene)
+    let barTick = 0;
+    let mapTick = 0;
+    const { deps, calls } = buildDeps({
+        hasFilledProgressBar: async () => {
+            barTick++;
+            return barTick === 1 || barTick >= 4;
+        },
+        recognizeMapText: async () => (++mapTick <= 2 ? { realm: null, map: 'Blood Lodge' } : null),
+        endgameEnabled: () => false,
+        huntTimeoutMs: 500,
+    });
+    const sm = new DetectionStateMachine(deps);
+    sm.start();
+    await sleep(150);
+    assert.equal(sm.state, 'HUNTING');
+    assert.equal(calls.onMatchEnded.length, 0);
+    sm.stop();
+});
+
+test('onMatchEnded reports why the match ended', async () => {
+    let barTick = 0;
+    const reasons = [];
+    const { deps } = buildDeps({
+        hasFilledProgressBar: async () => barTick++ === 0,
+        recognizeMapText: async () => ({ realm: null, map: 'Blood Lodge' }),
+        detectEndgame: async () => ({ seen: true, confident: true, text: '"CONTINUE" (0.99)' }),
+        onMatchEnded: (reason) => reasons.push(reason),
+        endgameEnabled: () => true,
+    });
+    const sm = new DetectionStateMachine(deps);
+    sm.start();
+    await sleep(120);
+    assert.match(reasons[0], /end screen confident read: "CONTINUE" \(0\.99\)/);
+    sm.stop();
+});

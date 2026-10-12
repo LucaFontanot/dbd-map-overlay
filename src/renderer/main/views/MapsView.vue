@@ -18,7 +18,7 @@
       <v-alert v-if="catalog.state.loadError" type="error" class="mb-4"
                :text="`Could not read the local maps: ${catalog.state.loadError}`"/>
       <div v-if="results.length" class="grid">
-        <MapCard v-for="item in results" :key="item.path" :src="catalog.imageUrl(item.path, undefined, {thumb: true})"
+        <MapCard v-for="item in results" :key="item.path" :src="catalog.thumbUrl(item.path)"
                  :name="stripExt(item.name)" :realm="item.realm" :creator="item.creator"
                  :active="item.path === player.state.lastMap" @pick="pick(item)"/>
       </div>

@@ -12,6 +12,7 @@ const INVOKE = new Set([
     'maps-sync',
     'get-dir-photos',
     'get-custom-photos',
+    'read-photo-data',
     'read-custom-data',
     'write-custom-data',
     'delete-custom-data',

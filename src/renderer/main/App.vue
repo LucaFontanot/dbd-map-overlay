@@ -169,6 +169,10 @@ onMounted(async () => {
   }
   ui.loading.text = 'Loading maps';
   await catalog.load();
+  ui.loading.text = 'Generating cache';
+  await catalog.buildThumbnails((done, total) => {
+    ui.loading.text = `Generating cache (${done}/${total})`;
+  });
   ui.loading.active = false;
   await hotkeys.load();
   if (settings.get('disableFaqPopup') !== true) {

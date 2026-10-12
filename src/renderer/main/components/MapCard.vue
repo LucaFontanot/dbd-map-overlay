@@ -19,11 +19,8 @@
     </div>
     <div class="meta">
       <div class="name text-truncate" :title="name">{{ name }}</div>
-      <div class="d-flex align-center ga-1 sub">
-        <span class="text-truncate opacity-70" :title="realm">{{ realm }}</span>
-        <v-spacer/>
-        <span class="creator text-truncate" :title="creator">{{ creator }}</span>
-      </div>
+      <div class="sub text-truncate opacity-70" :title="realm">{{ realm }}</div>
+      <div class="sub creator text-truncate" :title="creator">{{ creator }}</div>
     </div>
   </v-card>
 </template>
@@ -85,11 +82,10 @@ defineEmits(['pick']);
 
 .sub {
   font-size: 0.78rem;
-  min-width: 0;
+  line-height: 1.35;
 }
 
 .creator {
   color: rgb(var(--v-theme-secondary));
-  max-width: 50%;
 }
 </style>

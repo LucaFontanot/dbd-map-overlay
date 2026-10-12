@@ -42,6 +42,17 @@
                     @update:model-value="v => save('detectInCustoms', !!v)"/>
         </template>
       </v-list-item>
+      <v-list-item class="px-0">
+        <v-list-item-title>Detect the end of the match</v-list-item-title>
+        <v-list-item-subtitle>
+          Hides the map when the match ends. Off: the map stays until the next match replaces it.
+          Can misfire mid-match in dark scenes.
+        </v-list-item-subtitle>
+        <template #append>
+          <v-switch :model-value="settings.get('endgameDetection') === true"
+                    @update:model-value="v => save('endgameDetection', !!v)"/>
+        </template>
+      </v-list-item>
     </v-list>
   </div>
 </template>
