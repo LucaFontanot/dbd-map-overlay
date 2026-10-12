@@ -2,6 +2,7 @@ const { debugLog } = require("./logger");
 const { ipcRenderer } = require('electron');
 const { acceleratorToDisplay, displayToAccelerator, SYSTEM_HOTKEY_DEFS } = require("../shared/hotkeys-constants");
 const { parseMapPath } = require("../core/map-match");
+const { escapeHtml } = require("./html");
 
 class Hotkeys {
 
@@ -44,10 +45,10 @@ class Hotkeys {
             const { creator, map } = this.splitCreatorAndMap(mapKey);
 
             const $row = $(`
-                <tr data-id="${id}">
-                    <td><kbd>${hotkey}</kbd></td>
-                    <td>${map}</td>
-                    <td>${creator}</td>
+                <tr data-id="${escapeHtml(id)}">
+                    <td><kbd>${escapeHtml(hotkey)}</kbd></td>
+                    <td>${escapeHtml(map)}</td>
+                    <td>${escapeHtml(creator)}</td>
                 </tr>
             `);
             $row.append(this.trashCell(id));
@@ -60,7 +61,7 @@ class Hotkeys {
             <td class="text-center">
                 <button type="button"
                         class="delete-row btn btn-link p-0"
-                        data-id="${id}"
+                        data-id="${escapeHtml(id)}"
                         title="Delete row">
                     <i class="fas fa-trash-can"></i>
                 </button>
@@ -112,7 +113,7 @@ class Hotkeys {
             const $row = $(`
                 <tr data-action="${actionId}">
                     <td>${def.description}</td>
-                    <td><kbd class="system-hotkey-binding" data-action="${actionId}">${display}</kbd></td>
+                    <td><kbd class="system-hotkey-binding" data-action="${actionId}">${escapeHtml(display)}</kbd></td>
                     <td class="text-center">
                         <button type="button"
                                 class="edit-system-btn btn btn-sm btn-outline-primary"
@@ -234,28 +235,15 @@ class Hotkeys {
     // ─── Load Everything ──────────────────────────────────────
 
     async loadHotkeys() {
-        const mapDict = this.images.mapDictionary;
-
-        new TomSelect("#selectCreator", {
-            placeholder: "Select a creator...",
-            allowEmptyOption: false
-        });
-
-        this.populateCreatorSelect(mapDict);
-
-        const initialCreator = Object.keys(mapDict)[0];
-        this.populateMapSelectForCreator(mapDict, initialCreator);
-
-        $("#selectCreator").on("change", (e) => {
-            const selectedCreator = $(e.target).val();
-            this.populateMapSelectForCreator(mapDict, selectedCreator);
-        });
-
-        this.loadCapture();
-
-        ipcRenderer.on('hotkey-pressed', (event, mapKey) => {
-            let mapImagePath = this.images.pathLookup[mapKey];
-            const response = this.images.sendMap(mapImagePath, "standard");
+        // IPC first: global hotkeys must keep working even if building the
+        // selector UI below throws (e.g. no maps downloaded yet).
+        ipcRenderer.on('hotkey-pressed', async (event, mapKey) => {
+            const mapImagePath = this.images.pathLookup[mapKey];
+            if (!mapImagePath) {
+                debugLog("hotkey::setMap::no-map", mapKey);
+                return;
+            }
+            const response = await this.images.sendMap(mapImagePath, this.images.typeOf(mapImagePath));
             if (response) {
                 debugLog("hotkey::setMap::success", "Map set successfully");
             } else {
@@ -264,7 +252,7 @@ class Hotkeys {
         });
 
         ipcRenderer.on('hotkey-updated', (event, hotkeys) => {
-            this.hotkeys = hotkeys;
+            this.hotkeys = hotkeys || {};
             this.updateHotkeys();
         });
 
@@ -277,6 +265,31 @@ class Hotkeys {
 
         // Load from main process
         ipcRenderer.send('load-hotkeys');
+
+        try {
+            const mapDict = this.images.mapDictionary || {};
+
+            new TomSelect("#selectCreator", {
+                placeholder: "Select a creator...",
+                allowEmptyOption: false
+            });
+
+            this.populateCreatorSelect(mapDict);
+
+            const initialCreator = Object.keys(mapDict)[0];
+            this.populateMapSelectForCreator(mapDict, initialCreator);
+
+            // Read the dictionary at change time: it is rebuilt when custom maps change
+            $("#selectCreator").on("change", (e) => {
+                const selectedCreator = $(e.target).val();
+                this.populateMapSelectForCreator(this.images.mapDictionary || {}, selectedCreator);
+            });
+
+            this.loadCapture();
+        } catch (e) {
+            debugLog("hotkeys::loadHotkeys::ui-error", e.message);
+        }
+
         await this.loadSystemHotkeys();
         this.loadTable();
     }
@@ -306,7 +319,7 @@ class Hotkeys {
 
         $select.empty().append('<option value="">Select...</option>');
 
-        const realms = mapDict[creator];
+        const realms = (mapDict && creator && mapDict[creator]) || {};
         Object.entries(realms).forEach(([realm, mapNames]) => {
             const optgroup = $('<optgroup>').attr('label', realm);
 

@@ -1,4 +1,8 @@
-const {BrowserWindow, ipcMain} = require('electron');
+const {BrowserWindow, ipcMain, shell} = require('electron');
+const {lockDownWebContents} = require('./utils');
+
+// 'moved' never fires on Linux, so drags are also caught via 'move', debounced
+const MOVE_SAVE_DEBOUNCE_MS = 300;
 
 class OverlayWindow {
     window = null;
@@ -43,6 +47,7 @@ class OverlayWindow {
             }
         })
         this.window.loadFile('src/map/map.html')
+        lockDownWebContents(this.window.webContents, shell);
         // On Windows, 'screen-saver' level is not supported and gets silently ignored.
         // Use 'pop-up-menu' on Windows which correctly maps to HWND_TOPMOST and stays
         // above fullscreen game windows. On other platforms keep 'screen-saver'.
@@ -62,19 +67,28 @@ class OverlayWindow {
             }, 1000);
         }
 
-        this.window.on('moved', () => {
-            console.log("Window moved");
-            console.log(this.window.getBounds());
-            if (this.settings && this.settings.get('draggable') && this.window) {
-                const bounds = this.window.getBounds();
-                this.settings.set('overlayX', bounds.x);
-                this.settings.set('overlayY', bounds.y);
+        const savePosition = () => {
+            if (this._moveSaveTimer) {
+                clearTimeout(this._moveSaveTimer);
+                this._moveSaveTimer = null;
             }
+            if (!this.settings || !this.settings.get('draggable')) return;
+            if (!this.window || this.window.isDestroyed()) return;
+            const bounds = this.window.getBounds();
+            if (this.settings.get('overlayX') === bounds.x && this.settings.get('overlayY') === bounds.y) return;
+            this.settings.set('overlayX', bounds.x);
+            this.settings.set('overlayY', bounds.y);
+        };
+        this.window.on('moved', savePosition);
+        this.window.on('move', () => {
+            if (!this.settings || !this.settings.get('draggable')) return;
+            if (this._moveSaveTimer) clearTimeout(this._moveSaveTimer);
+            this._moveSaveTimer = setTimeout(savePosition, MOVE_SAVE_DEBOUNCE_MS);
         });
     }
 
     send(event, ...data) {
-        if (this.window) {
+        if (this.window && !this.window.isDestroyed()) {
             this.window.webContents.send(event, ...data);
         }
     }
@@ -105,6 +119,10 @@ class OverlayWindow {
     }
 
     close() {
+        if (this._moveSaveTimer) {
+            clearTimeout(this._moveSaveTimer);
+            this._moveSaveTimer = null;
+        }
         if (this._alwaysOnTopInterval) {
             clearInterval(this._alwaysOnTopInterval);
             this._alwaysOnTopInterval = null;

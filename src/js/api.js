@@ -1,6 +1,25 @@
 const {debugLog} = require("./logger");
 const axios = require("axios");
 
+/**
+ * Copy of a request/response object that is safe to log: the user token is
+ * never written out and base64 map payloads are reduced to their length.
+ */
+function redact(obj) {
+    if (!obj || typeof obj !== "object") return obj;
+    const out = {};
+    for (const [key, value] of Object.entries(obj)) {
+        if (key === "user" || key === "token") {
+            out[key] = "<redacted>";
+        } else if (typeof value === "string" && value.length > 200) {
+            out[key] = `<${value.length} chars>`;
+        } else {
+            out[key] = value;
+        }
+    }
+    return out;
+}
+
 class API {
 
     baseUrl = "";
@@ -11,7 +30,7 @@ class API {
     }
 
     setToken(token) {
-        debugLog("api::setToken::called", token);
+        debugLog("api::setToken::called", token ? "<token set>" : "<empty>");
         this.token = token;
     }
 
@@ -41,14 +60,14 @@ class API {
             let body = {
                 user: this.token
             }
-            debugLog("api::createLobby::body", body);
+            debugLog("api::createLobby::body", redact(body));
             let lobby = await axios.post(this.baseUrl + "/api/createLobby", body, {
                 headers: {
                     "l-content-sec": await window.lsChallange.getVerificationHeader(["(body)"], [body]),
                     "content-type": "application/json"
                 }
             })
-            debugLog("api::createLobby::response", lobby.data);
+            debugLog("api::createLobby::response", redact(lobby.data));
             return lobby.data;
         } catch (e) {
             debugLog("api::createLobby::error", e.message);
@@ -63,14 +82,14 @@ class API {
                 user: this.token,
                 code: code
             }
-            debugLog("api::joinLobby::body", body);
+            debugLog("api::joinLobby::body", redact(body));
             let lobby = await axios.post(this.baseUrl + "/api/joinRoom", body, {
                 headers: {
                     "l-content-sec": await window.lsChallange.getVerificationHeader(["(body)"], [body]),
                     "content-type": "application/json"
                 }
             })
-            debugLog("api::joinLobby::response", lobby.data);
+            debugLog("api::joinLobby::response", redact(lobby.data));
             return lobby.data;
         } catch (e) {
             debugLog("api::joinLobby::error", e.message);
@@ -86,13 +105,13 @@ class API {
                 id: id,
                 status: status
             }
-            debugLog("api::setLobbyStatus::body", body);
+            debugLog("api::setLobbyStatus::body", redact(body));
             let lobby = await axios.post(this.baseUrl + "/api/setCloseStatus", body, {
                 headers: {
                     "content-type": "application/json"
                 }
             })
-            debugLog("api::setLobbyStatus::response", lobby.data);
+            debugLog("api::setLobbyStatus::response", redact(lobby.data));
             return lobby.data;
         } catch (e) {
             debugLog("api::setLobbyStatus::error", e.message);
@@ -107,13 +126,13 @@ class API {
                 user: this.token,
                 id: id
             }
-            debugLog("api::leaveLobby::body", body);
+            debugLog("api::leaveLobby::body", redact(body));
             let lobby = await axios.post(this.baseUrl + "/api/leaveRoom", body, {
                 headers: {
                     "content-type": "application/json"
                 }
             })
-            debugLog("api::leaveLobby::response", lobby.data);
+            debugLog("api::leaveLobby::response", redact(lobby.data));
             return lobby.data;
         } catch (e) {
             debugLog("api::leaveLobby::error", e.message);
@@ -122,7 +141,7 @@ class API {
     }
 
     async setMap(id, map, type, rotation) {
-        debugLog("api::setMap::called", id, map, type, rotation);
+        debugLog("api::setMap::called", id, type === "custom" ? `<base64 ${String(map).length} chars>` : map, type, rotation);
         try {
             let body = {
                 user: this.token,
@@ -131,13 +150,13 @@ class API {
                 type: type,
                 rotation: rotation || 0
             }
-            debugLog("api::setMap::body", body);
+            debugLog("api::setMap::body", redact(body));
             let response = await axios.post(this.baseUrl + "/api/setMap", body, {
                 headers: {
                     "content-type": "application/json"
                 }
             })
-            debugLog("api::setMap::response", response.data);
+            debugLog("api::setMap::response", redact(response.data));
             return response.data;
         } catch (e) {
             debugLog("api::setMap::error", e.message);
@@ -152,13 +171,13 @@ class API {
                 user: this.token,
                 id: id
             }
-            debugLog("api::getLobbyData::body", body);
+            debugLog("api::getLobbyData::body", redact(body));
             let lobby = await axios.post(this.baseUrl + "/api/getLobbyData", body, {
                 headers: {
                     "content-type": "application/json"
                 }
             })
-            debugLog("api::getLobbyData::response", lobby.data);
+            debugLog("api::getLobbyData::response", redact(lobby.data));
             return lobby.data;
         } catch (e) {
             debugLog("api::getLobbyData::error", e.message);
@@ -173,13 +192,13 @@ class API {
                 user: this.token,
                 id: id
             }
-            debugLog("api::getLobbyCustomImage::body", body);
+            debugLog("api::getLobbyCustomImage::body", redact(body));
             let response = await axios.post(this.baseUrl + "/api/getLobbyCustomImage", body, {
                 headers: {
                     "content-type": "application/json"
                 }
             })
-            debugLog("api::getLobbyCustomImage::response", response.data);
+            debugLog("api::getLobbyCustomImage::response", redact(response.data));
             return response.data;
         } catch (e) {
             debugLog("api::getLobbyCustomImage::error", e.message);

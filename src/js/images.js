@@ -4,6 +4,30 @@ const {GITHUB_ASSETS, ASSETS_REPO} = require("./consts");
 const {logicalMapKeyFromPath, findClosestMapMatch, parseMapPath, foldName, levenshtein} = require("../core/map-match");
 const axios = require("axios");
 const crypto = require("crypto");
+const {escapeHtml} = require("./html");
+
+// Parallel image downloads during the catalog sync.
+const DOWNLOAD_CONCURRENCY = 4;
+
+/** `\Creator\Realm\Map.png` / `/Creator/Realm/Map.png` → `Creator/Realm/Map.png` */
+function normalizePhotoKey(p) {
+    return String(p || "").replace(/\\/g, "/").replace(/^\/+/, "");
+}
+
+/** Runs `worker` over `items` with at most `limit` calls in flight. */
+async function runLimited(items, limit, worker) {
+    let next = 0;
+    const runners = [];
+    for (let i = 0; i < Math.min(limit, items.length); i++) {
+        runners.push((async () => {
+            while (next < items.length) {
+                const item = items[next++];
+                await worker(item);
+            }
+        })());
+    }
+    await Promise.all(runners);
+}
 
 function foldTokens(str) {
     return foldName(str).split(' ').filter(Boolean);
@@ -57,6 +81,12 @@ class Images {
         this.pathLookup = [];
         this.cacheBlob = {};
         this.cacheType = {};
+        // Paths returned by get-custom-photos: the source decides custom vs
+        // standard, not whatever the gallery happened to cache.
+        this.customPaths = new Set();
+        // Bumped on every displayImages call; a run that sees a newer value
+        // stops writing to #results (the user typed again meanwhile).
+        this.displayGeneration = 0;
         this.lobby = null
         this.options = null;
         this.init();
@@ -82,44 +112,68 @@ class Images {
             debugLog("images::remoteUpdateImages::version", version);
             $("#title").text("DBD Map Overlay v" + version)
             let cloud_files = await axios.get(this.baseUrl + "/images.json?t=" + new Date().getTime())
-            debugLog("images::remoteUpdateImages::cloud_files", cloud_files.data.length);
+            const cloudList = Array.isArray(cloud_files.data) ? cloud_files.data : [];
+            debugLog("images::remoteUpdateImages::cloud_files", cloudList.length);
             let images = await ipcRenderer.invoke('get-dir-photos')
             debugLog("images::remoteUpdateImages::local_images", images.length);
             // Deletes local images that are not in the cloud
+            const cloudPaths = new Set(cloudList.map(cloud => normalizePhotoKey(cloud.filePath.substr(4))));
             for (let file of images) {
                 let fixWinPath = file.replace(/\\/g, "/")
-                let found = false;
-                for (let cloud of cloud_files.data) {
-                    let photoPath = cloud.filePath.substr(4)
-                    if (photoPath === fixWinPath) {
-                        found = true;
-                    }
-                }
-                if (found === false) {
+                if (!cloudPaths.has(normalizePhotoKey(fixWinPath))) {
                     debugLog("images::remoteUpdateImages::deleting", fixWinPath);
                     await ipcRenderer.invoke('delete-user-data', fixWinPath)
                 }
             }
+            // Main hashes the downloaded photos itself: shipping every file over
+            // IPC just to hash it here was the slowest part of startup.
+            let localHashes = null;
+            try {
+                const hashes = await ipcRenderer.invoke('get-photo-hashes');
+                localHashes = {};
+                for (const [key, md5] of Object.entries(hashes || {})) {
+                    localHashes[normalizePhotoKey(key)] = md5;
+                }
+            } catch (e) {
+                debugLog("images::remoteUpdateImages::hashes-error", e.message);
+            }
+            const toDownload = [];
+            for (let file of cloudList) {
+                let photoPath = file.filePath.substr(5)
+                let localMd5;
+                if (localHashes) {
+                    localMd5 = localHashes[normalizePhotoKey(photoPath)];
+                } else {
+                    // Older main without get-photo-hashes: hash locally
+                    localMd5 = this.computeMD5(await ipcRenderer.invoke('read-user-data', photoPath));
+                }
+                if (localMd5 !== file.md5) toDownload.push(file);
+            }
+            debugLog("images::remoteUpdateImages::to-download", toDownload.length);
             // Downloads images that are in the cloud but not locally or have a different MD5
-            for (let file of cloud_files.data) {
+            await runLimited(toDownload, DOWNLOAD_CONCURRENCY, async (file) => {
                 let title = file.filePath.replace(/\\/g, "/").split("/")
                 $("#loadingContent").text("Updating " + title[title.length - 1])
-                debugLog("images::remoteUpdateImages::checking", file.filePath);
                 let photoPath = file.filePath.substr(5)
-                let result = await ipcRenderer.invoke('read-user-data', photoPath)
-                if (this.computeMD5(result) !== file.md5) {
-                    debugLog("images::remoteUpdateImages::downloading", file.filePath);
-                    try {
-                        let imageBuff = await axios.get(this.baseUrl + "/" + file.filePath + "?md5=" + file.md5, {
-                            responseType: "arraybuffer",
-                            timeout: 5000
-                        })
-                        await ipcRenderer.invoke('write-user-data', photoPath, imageBuff.data)
-                    } catch (e) {
-                        debugLog("images::remoteUpdateImages::error", e.message);
+                debugLog("images::remoteUpdateImages::downloading", file.filePath);
+                try {
+                    let imageBuff = await axios.get(this.baseUrl + "/" + file.filePath + "?md5=" + file.md5, {
+                        responseType: "arraybuffer",
+                        timeout: 5000
+                    })
+                    const data = Buffer.from(imageBuff.data);
+                    const md5 = this.computeMD5(data);
+                    if (md5 !== file.md5) {
+                        // Truncated/corrupted download or tampered CDN copy:
+                        // keep the local file, retry on the next sync.
+                        debugLog("images::remoteUpdateImages::md5-mismatch", file.filePath, md5, file.md5);
+                        return;
                     }
+                    await ipcRenderer.invoke('write-user-data', photoPath, data)
+                } catch (e) {
+                    debugLog("images::remoteUpdateImages::error", file.filePath, e.message);
                 }
-            }
+            });
         } catch (e) {
             debugLog("images::remoteUpdateImages::error", e.message);
         }
@@ -130,10 +184,10 @@ class Images {
         const thisRef = this;
         $("#obsOpen").on("click", function (ev) {
             ipcRenderer.send('obs-open');
-            thisRef.sendMap(this.lastMap, this.lastMapType)
+            thisRef.sendMap(thisRef.lastMap, thisRef.lastMapType)
         })
         $("#hide").on("click", function (ev) {
-            thisRef.sendMap("", this.lastMapType)
+            thisRef.sendMap("", thisRef.lastMapType)
         })
         $("#searchbar").on("input", function (ev) {
             thisRef.displayImages($(this).val())
@@ -143,16 +197,26 @@ class Images {
             await thisRef.displayImages($("#searchbar").val());
             await thisRef.onCreatorLayoutChanged(creator);
         })
-        ipcRenderer.on('show-map-command', (event, arg) => {
-            this.lastLogicalMapKey = arg;
+        // Delegated once: the gallery is re-rendered on every search keystroke
+        $("#results").on("click", "img", function (ev) {
+            const img = $(this).attr("data-img");
+            const type = $(this).attr("data-type");
+            thisRef.sendMap(img, type);
+        });
+        ipcRenderer.on('show-map-command', async (event, arg) => {
             let mapIamgePath = this.findClosestMapMatch(arg)
+            if (!mapIamgePath) {
+                debugLog("show-map-command::no-match", arg);
+                return;
+            }
+            this.lastLogicalMapKey = arg;
             // A resolved path differing from the preferred creator means the
             // preferred creator has no local copy of this map, so another
             // artist's PNG is being substituted. Surfacing it helps distinguish
             // an out-of-date/incomplete preferred-creator download (the usual
             // cause) from a real matching bug.
             const preferredCreator = (this.settings.get('preferredCreator') || '').trim();
-            if (mapIamgePath && preferredCreator) {
+            if (preferredCreator) {
                 const resolvedCreator = parseMapPath(mapIamgePath)?.creator || '';
                 if (resolvedCreator && resolvedCreator.toLowerCase() !== preferredCreator.toLowerCase()) {
                     debugLog("show-map-command::creator-fallback",
@@ -161,17 +225,73 @@ class Images {
             }
             // fromDetector -- without it, main takes this for a manual pick and
             // releases the detector's claim on the overlay right after detection
-            const response = this.sendMap(mapIamgePath, "standard", true, true);
+            const response = await this.sendMap(mapIamgePath, this.typeOf(mapIamgePath), true, true);
             if (response) {
                 debugLog("mapCommand::setMap::success", "Map set successfully");
             } else {
                 debugLog("mapCommand::setMap::error", "Failed to set map");
             }
         });
+        // Stream Deck buttons / second-instance `show-map=` args: same payload
+        // as show-map-command, but it is the user picking a map, so it must
+        // take the overlay over from the detector (fromDetector=false).
+        ipcRenderer.on('external-map-command', async (event, arg) => {
+            const mapImagePath = this.pathLookup[arg] || this.findClosestMapMatch(arg);
+            if (!mapImagePath) {
+                debugLog("external-map-command::no-match", arg);
+                return;
+            }
+            const response = await this.sendMap(mapImagePath, this.typeOf(mapImagePath), true, false);
+            debugLog(response ? "external-map-command::success" : "external-map-command::error", arg, mapImagePath);
+        });
         ipcRenderer.on('map-detector-clear', () => {
             this.lastLogicalMapKey = "";
             this.sendMap("", this.lastMapType || "standard", true, true);
         });
+    }
+
+    /** "custom" for files in the custom dir, "standard" for downloaded maps. */
+    typeOf(path) {
+        return this.customPaths.has(path) ? "custom" : "standard";
+    }
+
+    /**
+     * Maps a path received from elsewhere (lobby server) onto a local
+     * downloaded map file. Separators are normalised so Windows and Linux
+     * peers agree. Custom files are never matched.
+     * @returns {string|null} local path from pathLookup, or null if unknown
+     */
+    resolveLocalMapPath(path) {
+        if (typeof path !== "string" || path === "") return null;
+        const wanted = normalizePhotoKey(path);
+        for (const local of Object.values(this.pathLookup)) {
+            if (this.customPaths.has(local)) continue;
+            if (normalizePhotoKey(local) === wanted) return local;
+        }
+        return null;
+    }
+
+    /** Object URL for a gallery/custom image, read once and cached. */
+    async getImageUrl(img, type) {
+        if (this.cacheBlob.hasOwnProperty(img)) return this.cacheBlob[img];
+        const channel = type === "custom" ? 'read-custom-data' : 'read-user-data';
+        const imgData = await ipcRenderer.invoke(channel, img);
+        // Another caller may have filled the slot while we were reading
+        if (this.cacheBlob.hasOwnProperty(img)) return this.cacheBlob[img];
+        const url = URL.createObjectURL(new Blob([imgData]));
+        this.cacheBlob[img] = url;
+        this.cacheType[img] = type;
+        return url;
+    }
+
+    /** Drops (and revokes) cached object URLs, all of them or those matching `predicate`. */
+    dropCachedImages(predicate = () => true) {
+        for (const img of Object.keys(this.cacheBlob)) {
+            if (!predicate(img)) continue;
+            URL.revokeObjectURL(this.cacheBlob[img]);
+            delete this.cacheBlob[img];
+            delete this.cacheType[img];
+        }
     }
 
     searchMaps(name = '', creator = '') {
@@ -232,8 +352,13 @@ class Images {
             let imgs = await ipcRenderer.invoke('get-dir-photos')
             let imgs_custom = await ipcRenderer.invoke('get-custom-photos')
             debugLog("images::remoteUpdateImages::checking", imgs_custom.length, imgs.length);
+            this.customPaths = new Set(imgs_custom);
             imgs = imgs_custom.concat(imgs)
             this.mapDictionary = await this.buildMapDictionary(imgs)
+            // Files that disappeared (deleted custom maps, removed catalog
+            // entries) must not keep their blob alive.
+            const present = new Set(imgs);
+            this.dropCachedImages(img => !present.has(img));
             if ($("#creatorSelect option").length === 1) {
                 $("#creatorSelect").empty();
 
@@ -241,7 +366,7 @@ class Images {
 
                 const creators = Object.keys(this.mapDictionary);
                 creators.forEach(creator => {
-                    $("#creatorSelect").append(`<option value="${creator}">${creator}</option>`);
+                    $("#creatorSelect").append(`<option value="${escapeHtml(creator)}">${escapeHtml(creator)}</option>`);
                 });
                 if (this.options) this.options.populatePreferredCreators(creators);
                 const preferred = this.settings.get('preferredCreator');
@@ -314,7 +439,7 @@ class Images {
         }
         if (newPath === this.lastMap) return;
 
-        const type = this.cacheType[newPath] || "standard";
+        const type = this.typeOf(newPath);
         debugLog("images::onCreatorLayoutChanged::swap", identity, chosen, newPath);
         await this.sendMap(newPath, type, true, true);
     }
@@ -324,59 +449,43 @@ class Images {
         debugLog("images::invalidateCache::called");
         this.mapDictionary = [];
         this.pathLookup = [];
+        // Custom files can be overwritten under the same name: never reuse their blobs
+        this.dropCachedImages(img => this.customPaths.has(img));
         await this.displayImages($("#searchbar").val())
     }
 
     async displayImages(filter = "") {
         debugLog("images::displayImages::called", filter)
+        const generation = ++this.displayGeneration;
         if (this.mapDictionary.length === 0) {
             await this.loadImages();
         }
+        if (generation !== this.displayGeneration) return;
         try{
-            $("#results").html("");
             let creator = $("#creatorSelect").val();
             const results = this.searchMaps(filter, creator);
+            const html = [];
             for (let result of results) {
                 const img = result.path;
                 if (!img) continue;
 
-                let url = "";
-                let type = "standard";
-
-                if (this.cacheBlob.hasOwnProperty(img)) {
-                    url = this.cacheBlob[img];
-                    type = this.cacheType[img];
-                } else {
-                    let imgData = await ipcRenderer.invoke('read-user-data', img);
-                    if (!imgData || imgData.length === 0) {
-                        imgData = await ipcRenderer.invoke('read-custom-data', img);
-                        type = "custom";
-                    }
-
-                    const blob = new Blob([imgData]);
-                    url = URL.createObjectURL(blob);
-                    this.cacheBlob[img] = url;
-                    this.cacheType[img] = type;
-                }
+                const type = this.typeOf(img);
+                const url = await this.getImageUrl(img, type);
+                // A newer search started while we were reading files
+                if (generation !== this.displayGeneration) return;
                 const mapName = result.name ? result.name.replace(/\.[^/.]+$/, "") : "Unknown Map";
-                $("#results").append(`
+                html.push(`
                     <div class="col-md-4 mb-4 text-center">
-                        <img src="${url}" data-img="${img}" class="img-fluid rounded shadow-sm mb-2" data-type="${type}"/>
+                        <img src="${escapeHtml(url)}" data-img="${escapeHtml(img)}" class="img-fluid rounded shadow-sm mb-2" data-type="${escapeHtml(type)}" loading="lazy" decoding="async"/>
                         <div class="small">
-                            <strong>${mapName}</strong><br/>
-                            <span>${result.realm}</span><br/>
-                            <em>${result.creator}</em>
+                            <strong>${escapeHtml(mapName)}</strong><br/>
+                            <span>${escapeHtml(result.realm)}</span><br/>
+                            <em>${escapeHtml(result.creator)}</em>
                         </div>
                     </div>
                 `);
             }
-
-            const thisRef = this;
-            $("#results img").click(function (ev) {
-                const img = $(this).attr("data-img");
-                const type = $(this).attr("data-type");
-                thisRef.sendMap(img, type);
-            });
+            $("#results").html(html.join(""));
         }catch (e){
             debugLog("images::displayImages::error", e.message);
         }
@@ -396,7 +505,7 @@ class Images {
                 if (fromPath) this.lastLogicalMapKey = fromPath;
             }
         }
-        if (type === "") return;
+        if (type === "") return false;
         this.lastMap = map;
         this.lastMapType = type;
         ipcRenderer.send('map-change', map, { fromDetector });
@@ -411,6 +520,7 @@ class Images {
                 await this.lobby.setMap(map, type)
             }
         }
+        return true;
     }
 }
 

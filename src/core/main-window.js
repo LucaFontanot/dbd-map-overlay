@@ -4,6 +4,7 @@ const {autoUpdater} = require("electron-updater");
 const fs = require("fs");
 const { imageSize } = require('image-size')
 const { computeOverlayPosition, rotatedSize } = require('./overlay-position');
+const { safeJoin, lockDownWebContents } = require('./utils');
 
 const debug = process.env.DEBUG === 'true';
 
@@ -42,80 +43,127 @@ class MainWindow {
                 };
             });
         })
+        // Monotonic ids of the latest map-change: a slower earlier request (file
+        // read) must not overwrite a newer one that already landed. OBS has its
+        // own counter, bumped only by real changes: a settings preview racing a
+        // real change may win the overlay but must not drop the OBS update.
+        this.overlayRequest = 0;
+        this.obsRequest = 0;
         ipcMain.on('map-change', async (event, map, opts = {}) => {
-            // Stop detection when map changes (user click, lobby update, etc.) --
-            // unless the change came from the detector itself, which should keep
-            // running, or is only the settings preview touching the overlay.
-            if (!opts.fromDetector && !opts.preview && this.mapDetector) this.mapDetector.stop();
-
-            if (!map) {
-                overlayWindow.send('map-hide');
-                if (!opts.preview) obsWindow.send('map-hide');
-            } else {
-                let imgData = "";
-                if (map.startsWith("\\") || map.startsWith("/")) {
-                    const userdata = app.getPath('userData');
-                    const fileDir = path.join(userdata, "photo", map)
-                    const fileCustom = path.join(userdata, "custom", map)
-                    if (fs.existsSync(fileDir)) {
-                        imgData = await fs.promises.readFile(fileDir);
-                    } else if (fs.existsSync(fileCustom)) {
-                        imgData = await fs.promises.readFile(fileCustom);
-                    } else {
-                        imgData = Buffer.from(map, "base64")
-                    }
-                } else {
-                    imgData = Buffer.from(map, "base64")
-                }
-                const dimensions = imageSize(imgData);
-                const displays = screen.getAllDisplays();
-                const monitorIndex = parseInt(settings.get('monitor')) || 0;
-                const selectedDisplay = displays[monitorIndex] || displays[0] || screen.getPrimaryDisplay();
-                let {x: displayX, y: displayY, width, height} = selectedDisplay.workArea;
-                overlayWindow.setBounds({
-                    ...selectedDisplay.workArea,
-                    width: 0,
-                    height: 0,
-                    x: this.settings.get('overlayX') || 0,
-                    y: this.settings.get('overlayY') || 0
-                })
-                // Window fits the rotated bounding box so arbitrary angles don't clip
-                const displayWidth = parseInt(settings.get('size'));
-                const rotated = rotatedSize({
-                    width: displayWidth,
-                    height: (displayWidth / dimensions.width) * dimensions.height,
-                    rotation: settings.get('rotation')
-                });
-                overlayWindow.setSize(rotated.width + 5, parseInt(rotated.height * 1.1))
-                console.log("Selected display:", selectedDisplay);
-                console.log("Overlay bounds:", overlayWindow.getBounds());
-                console.log("Image dimensions:", dimensions);
-                console.log("Calculated overlay size:", {width: rotated.width + 5, height: parseInt(rotated.height * 1.1)});
-                console.log("Display bounds:", {x: displayX, y: displayY, width, height});
-                console.log("Overlay position setting:", settings.get('position'));
-                console.log("Draggable setting:", settings.get('draggable'));
-                if (!settings.get('draggable')) {
-                    const overlayBounds = overlayWindow.getBounds();
-                    const {x, y} = computeOverlayPosition({
-                        workArea: selectedDisplay.workArea,
-                        overlayWidth: overlayBounds.width,
-                        overlayHeight: overlayBounds.height,
-                        position: settings.get('position'),
-                        glideX: settings.get('glideX'),
-                        glideY: settings.get('glideY')
-                    });
-                    overlayWindow.setPosition(x, y);
-                }
-                if (!settings.get('hideOverlay')) {
-                    overlayWindow.send('map-change', Buffer.from(imgData).toString("base64"), settings.get('size'), settings.get('opacity'), settings.get('draggable'), settings.get('rotation'))
-                } else {
-                    overlayWindow.send('map-change', Buffer.from("").toString("base64"), settings.get('size'), settings.get('opacity'), settings.get('draggable'), settings.get('rotation'));
-                }
-                // The settings preview stays off the OBS window -- it must never leak into a stream
-                if (!opts.preview) obsWindow.send('map-change', Buffer.from(imgData).toString("base64"), settings.get('size'));
+            opts = opts || {};
+            const request = {overlay: ++this.overlayRequest, obs: opts.preview ? null : ++this.obsRequest};
+            try {
+                await this.applyMapChange(map, opts, request);
+            } catch (err) {
+                console.error('map-change failed:', err);
             }
-
         });
+        settings.on('change', () => {
+            this.send('settings-updated', settings.settings);
+        });
+        this.registerUpdater();
+    }
+
+    /**
+     * Resolve a map-change payload into image bytes. Strings starting with
+     * / or \ are files under userData/photo or userData/custom (containment
+     * checked); anything else is base64 image data.
+     * @returns {Promise<Buffer|null>} null when the path escapes the data dirs
+     */
+    async resolveMapImage(map) {
+        if (!(map.startsWith("\\") || map.startsWith("/"))) {
+            return Buffer.from(map, "base64");
+        }
+        const rel = map.replace(/\\/g, "/");
+        const userdata = app.getPath('userData');
+        let candidates;
+        try {
+            candidates = [safeJoin(path.join(userdata, "photo"), rel), safeJoin(path.join(userdata, "custom"), rel)];
+        } catch (err) {
+            console.warn('map-change: rejected path', err.message);
+            return null;
+        }
+        for (const file of candidates) {
+            try {
+                return await fs.promises.readFile(file);
+            } catch (err) {
+                // Base64 JPEGs also start with "/" ("/9j/..."), so a miss is
+                // expected; ENAMETOOLONG/ENOTDIR are that same case.
+                if (!['ENOENT', 'EISDIR', 'ENOTDIR', 'ENAMETOOLONG'].includes(err.code)) {
+                    console.warn('map-change: cannot read', file, err.message);
+                }
+            }
+        }
+        // Not a file on disk: keep the legacy fallback of decoding it as base64
+        return Buffer.from(map, "base64");
+    }
+
+    async applyMapChange(map, opts, request) {
+        const settings = this.settings;
+        const overlayWindow = this.overlayWindow;
+        const obsWindow = this.obsWindow;
+        // Stop detection when map changes (user click, lobby update, etc.) --
+        // unless the change came from the detector itself, which should keep
+        // running, or is only the settings preview touching the overlay.
+        if (!opts.fromDetector && !opts.preview && this.mapDetector) this.mapDetector.stop();
+
+        const hide = () => {
+            overlayWindow.send('map-hide');
+            if (!opts.preview) obsWindow.send('map-hide');
+        };
+        if (!map || typeof map !== 'string') {
+            hide();
+            return;
+        }
+        const imgData = await this.resolveMapImage(map);
+        // Superseded while reading?
+        const overlayCurrent = request.overlay === this.overlayRequest;
+        const obsCurrent = !opts.preview && request.obs === this.obsRequest;
+        if (!overlayCurrent && !obsCurrent) return;
+        if (!imgData) {
+            if (overlayCurrent) overlayWindow.send('map-hide');
+            if (obsCurrent) obsWindow.send('map-hide');
+            return;
+        }
+        const bytes = new Uint8Array(imgData);
+        // The settings preview stays off the OBS window -- it must never leak into a stream
+        if (obsCurrent) obsWindow.send('map-change', bytes, settings.get('size'));
+        if (!overlayCurrent) return;
+        const dimensions = imageSize(imgData);
+        const displays = screen.getAllDisplays();
+        const monitorIndex = parseInt(settings.get('monitor')) || 0;
+        const selectedDisplay = displays[monitorIndex] || displays[0] || screen.getPrimaryDisplay();
+        overlayWindow.setBounds({
+            ...selectedDisplay.workArea,
+            width: 0,
+            height: 0,
+            x: settings.get('overlayX') || 0,
+            y: settings.get('overlayY') || 0
+        })
+        // Window fits the rotated bounding box so arbitrary angles don't clip
+        const displayWidth = parseInt(settings.get('size'));
+        const rotated = rotatedSize({
+            width: displayWidth,
+            height: (displayWidth / dimensions.width) * dimensions.height,
+            rotation: settings.get('rotation')
+        });
+        overlayWindow.setSize(rotated.width + 5, parseInt(rotated.height * 1.1))
+        if (!settings.get('draggable')) {
+            const overlayBounds = overlayWindow.getBounds();
+            const {x, y} = computeOverlayPosition({
+                workArea: selectedDisplay.workArea,
+                overlayWidth: overlayBounds.width,
+                overlayHeight: overlayBounds.height,
+                position: settings.get('position'),
+                glideX: settings.get('glideX'),
+                glideY: settings.get('glideY')
+            });
+            overlayWindow.setPosition(x, y);
+        }
+        // Raw bytes go over IPC (structured clone → Uint8Array in the renderer);
+        // an empty payload means "hidden" for the overlay.
+        const overlayBytes = settings.get('hideOverlay') ? new Uint8Array(0) : bytes;
+        overlayWindow.send('map-change', overlayBytes, settings.get('size'), settings.get('opacity'), settings.get('draggable'), settings.get('rotation'))
     }
 
     show() {
@@ -161,11 +209,7 @@ class MainWindow {
         });
         this.window.loadFile('src/index.html')
 
-
-        this.window.webContents.setWindowOpenHandler(({url}) => {
-            shell.openExternal(url);
-            return {action: 'deny'};
-        });
+        lockDownWebContents(this.window.webContents, shell);
 
         if(debug) this.window.webContents.openDevTools()
         if (!debug) this.window.setMenu(null)
@@ -175,13 +219,16 @@ class MainWindow {
 
 
     sendUpdate(message) {
-        if (this.window){
-            this.window.webContents.send('update-message', message);
-        }
+        this.send('update-message', message);
     }
 
-    checkUpdates() {
+    // Listeners are registered once per process; show() can run again after
+    // the window is closed and reopened from the tray.
+    registerUpdater() {
         let classInstance = this;
+        // Dev-only: lets `npm start` exercise the updater against dev-app-update.yml
+        // without faking app.isPackaged for the whole app.
+        if (process.env.DBD_DEV_UPDATER === 'true') autoUpdater.forceDevUpdateConfig = true;
         autoUpdater.on('checking-for-update', () => {
             classInstance.sendUpdate('Checking for update...');
         })
@@ -202,38 +249,41 @@ class MainWindow {
         autoUpdater.on('update-downloaded', (info) => {
             classInstance.sendUpdate('Update downloaded. The will update on next restart.');
         });
-        Object.defineProperty(app, 'isPackaged', {
-            get() {
-                return true;
-            }
-        });
-        setTimeout(async () => {
-            classInstance.sendUpdate('Checking for updates...');
-            await autoUpdater.checkForUpdatesAndNotify();
+    }
+
+    checkUpdates() {
+        if (this.updateCheckScheduled) return;
+        this.updateCheckScheduled = true;
+        setTimeout(() => {
+            this.sendUpdate('Checking for updates...');
+            autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+                console.error('Update check failed:', err);
+                this.sendUpdate('Error while updating: ' + err);
+            });
         },2000);
     }
 
     send(event, ...data) {
-        if (this.window) {
+        if (this.window && !this.window.isDestroyed()) {
             this.window.webContents.send(event, ...data);
         }
     }
 
     focus() {
-        if (this.window) {
+        if (this.window && !this.window.isDestroyed()) {
             this.window.focus();
         }
     }
 
     isVisible(){
-        if (this.window) {
+        if (this.window && !this.window.isDestroyed()) {
             return this.window.isVisible();
         }
         return false;
     }
 
     hide(){
-        if (this.window) {
+        if (this.window && !this.window.isDestroyed()) {
             this.window.hide();
         }
     }

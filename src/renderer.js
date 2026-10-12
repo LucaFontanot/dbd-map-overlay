@@ -1,4 +1,5 @@
 const {ipcRenderer} = require('electron');
+const {debugLog} = require("./js/logger");
 
 const API = require("./js/api.js");
 const Settings = require("./js/settings.js");
@@ -54,7 +55,8 @@ const hotkeys = new Hotkeys(images, settings);
 const lobby = new Lobby(api, settings, images);
 images.setLobby(lobby);
 
-// Wait for settings to be initialized before creating Options
+// Wait for settings to be initialized before creating Options.
+// init() is idempotent (one shared promise), so later awaits don't re-run it.
 let options;
 settings.init().then(() => {
     /**
@@ -85,7 +87,10 @@ const custom = new Custom(images);
 const streamDeck = new StreamDeck(images);
 
 document.addEventListener('DOMContentLoaded', async function () {
+    await settings.init()
     await images.remoteUpdateImages()
+    // First run: realm folders only exist after the download above
+    ipcRenderer.invoke('map-detector-reload-realms').catch(e => debugLog("renderer::reload-realms::error", e.message))
     await images.displayImages("")
     await custom.generateCustomList()
     await hotkeys.loadHotkeys()

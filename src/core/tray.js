@@ -10,6 +10,8 @@ class TrayController {
     }
 
     create() {
+        // 'activate' can call createWindow() again -- reuse the existing icon
+        if (this.tray && !this.tray.isDestroyed()) return;
         console.log("Creating tray icon…");
         const trayIconPath = path.join(global.dirname, "src", "images", "icon.png");
         if (!fs.existsSync(trayIconPath)) {
@@ -41,20 +43,30 @@ class TrayController {
 
         this.tray.setContextMenu(contextMenu);
 
+        // Windows fires 'click' for both halves of a double-click, which would
+        // hide then re-show the window; single click toggles, double click only
+        // brings it to front.
         this.tray.on('double-click', () => {
             mainWindow.show();
             mainWindow.focus();
         });
 
         this.tray.on('click', () => {
+            if (process.platform === 'win32') {
+                if (this._clickTimer) return;
+                this._clickTimer = setTimeout(() => {
+                    this._clickTimer = null;
+                }, 400);
+            }
             mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
         });
     }
 
     destroy() {
-        if (this.tray) {
+        if (this.tray && !this.tray.isDestroyed()) {
             this.tray.destroy();
         }
+        this.tray = null;
     }
 }
 

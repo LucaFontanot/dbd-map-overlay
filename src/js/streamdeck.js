@@ -1,5 +1,15 @@
 const {debugLog} = require("./logger");
 const { ipcRenderer } = require('electron');
+const { escapeHtml } = require("./html");
+
+// Characters that stay special inside a double-quoted shell word. Anything
+// containing them is refused rather than escaped: map keys come from file
+// names (and the remote catalog), so they must never reach a shell unquoted.
+const UNSAFE_SHELL_CHARS = /["`$\\]/;
+
+function isShellSafe(value) {
+    return typeof value === 'string' && value.length > 0 && !UNSAFE_SHELL_CHARS.test(value);
+}
 
 class StreamDeck {
     constructor(images) {
@@ -90,11 +100,11 @@ class StreamDeck {
                                     <div class="mb-3">
                                         <label class="form-label">Select Creator:</label>
                                         <div class="form-check-container" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 5px;">
-                                            ${creators.map(creator => `
+                                            ${creators.map((creator, index) => `
                                                 <div class="form-check">
-                                                    <input class="form-check-input" type="radio" name="creatorSelect" value="${creator}" id="creator_${creator}">
-                                                    <label class="form-check-label" for="creator_${creator}">
-                                                        ${creator}
+                                                    <input class="form-check-input" type="radio" name="creatorSelect" value="${escapeHtml(creator)}" id="creator_${index}">
+                                                    <label class="form-check-label" for="creator_${index}">
+                                                        ${escapeHtml(creator)}
                                                     </label>
                                                 </div>
                                             `).join('')}
@@ -148,6 +158,10 @@ class StreamDeck {
             $('#confirmConfig').on('click', () => {
                 this.buttonCount = parseInt($('#buttonCount').val()) || 6;
                 this.commandPrefix = $('#commandPrefix').val() || 'dbd-map-tool';
+                if (!isShellSafe(this.commandPrefix)) {
+                    alert('The command prefix must not contain " ` $ or \\');
+                    return;
+                }
                 this.selectedCreator = $('input[name="creatorSelect"]:checked').val();
                 
                 if (!this.selectedCreator) {
@@ -187,11 +201,19 @@ class StreamDeck {
         
         // Iterate through realms for the selected creator
         for (const [realmName, maps] of Object.entries(this.mapDictionary[this.selectedCreator])) {
-            realms[realmName] = maps.map(mapName => ({
-                key: `${this.selectedCreator}/${realmName}/${mapName}`,
-                name: mapName,
-                creator: this.selectedCreator
-            }));
+            const safeMaps = maps
+                .map(mapName => ({
+                    key: `${this.selectedCreator}/${realmName}/${mapName}`,
+                    name: mapName,
+                    creator: this.selectedCreator
+                }))
+                .filter(map => {
+                    // The key is embedded in a shell command (RunCommand)
+                    if (isShellSafe(map.key)) return true;
+                    debugLog("StreamDeck::organizeMapsByRealm::unsafe-key-skipped", map.key);
+                    return false;
+                });
+            if (safeMaps.length > 0) realms[realmName] = safeMaps;
         }
         
         return realms;
@@ -432,7 +454,7 @@ class StreamDeck {
     showErrorMessage(message) {
         const alertHtml = `
             <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <strong>Error!</strong> ${message}
+                <strong>Error!</strong> ${escapeHtml(message)}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         `;

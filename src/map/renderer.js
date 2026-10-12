@@ -3,9 +3,11 @@ let url = null;
 ipcRenderer.on('map-change', async (event, img, size, opacity, draggable, rotation) => {
     if (url !== null) {
         URL.revokeObjectURL(url)
+        url = null
     }
-    let imgData = Buffer.from(img, "base64");
-    let blob = new Blob([imgData]);
+    // img is the raw image bytes (Uint8Array); an empty payload means hidden
+    // and yields an empty, unrenderable blob just like the old empty base64 string.
+    let blob = new Blob([img]);
     url = URL.createObjectURL(blob);
     $("#mainImg").attr("src", url).css({
         "width": size + "px",

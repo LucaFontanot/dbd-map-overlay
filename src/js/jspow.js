@@ -6,20 +6,27 @@
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         },
+        // Server-controlled difficulty: bound the work so a bad/hostile
+        // challenge can't spin the renderer forever.
+        MAX_DIFFICULTY: 6,
+        MAX_ITERATIONS: 5e7,
         async computeNonce(conf){
-            var nonce = conf.nonce ? conf.nonce : "0"
+            var nonce = conf.nonce ? String(conf.nonce) : "0"
             var data = conf.data ? conf.data : ""
-            var difficulty = conf.difficulty ? conf.difficulty : 4
-            var answer = 0;
+            var difficulty = parseInt(conf.difficulty, 10)
+            if (!Number.isFinite(difficulty) || difficulty < 1) difficulty = 4
+            // A prefix longer/shorter than the difficulty can never match
+            if (difficulty > this.MAX_DIFFICULTY || nonce.length !== difficulty) {
+                return null
+            }
             var hash
-            while (true) {
+            for (var answer = 0; answer < this.MAX_ITERATIONS; answer++) {
                 hash = await this.sha256(data + answer);
                 if (hash.substring(0, difficulty) === nonce) {
                     return [answer,hash]
-                    break;
                 }
-                answer++;
             }
+            return null
         },
         async getVerificationPayload(nonce) {
             return new Promise(function (resolve) {
@@ -39,10 +46,13 @@
             var digest = await this.sha256(data.join(","))
             var headerBuild = "target=\"" + fields.join(",") + "\" digest=\"SHA256" + digest + "\" ";
             var payload = await this.getVerificationPayload(digest)
-            if (payload!==false){
+            if (payload && typeof payload === "object"){
+                var solved = await this.computeNonce(payload)
+                if (solved === null) {
+                    return "-1"
+                }
                 headerBuild+="token=\"" + payload.token + "\" "
-                let [answer,hash] = await this.computeNonce(payload)
-                headerBuild+="answer=\"" + answer + "\""
+                headerBuild+="answer=\"" + solved[0] + "\""
                 return headerBuild
             }
             return "-1"

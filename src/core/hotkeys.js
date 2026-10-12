@@ -2,9 +2,15 @@ const path = require('path');
 const { app, globalShortcut, ipcMain } = require('electron');
 const fs = require("fs");
 const { randomUUID } = require("crypto");
-const { SYSTEM_HOTKEY_DEFS, ACTION_TO_SETTING_KEY, acceleratorToDisplay } = require("../shared/hotkeys-constants");
+const { SYSTEM_HOTKEY_DEFS, ACTION_TO_SETTING_KEY, acceleratorToDisplay, displayToAccelerator } = require("../shared/hotkeys-constants");
 
 const hotkeyFilePath = path.join(app.getPath('userData'), 'hotkeys.json');
+
+// Custom hotkeys are stored as typed ("Ctrl+H"), system ones as Electron
+// accelerators ("CommandOrControl+H"); compare both in accelerator form.
+function canonicalAccelerator(accel) {
+    return displayToAccelerator(accel || '');
+}
 
 class Hotkeys {
 
@@ -32,6 +38,12 @@ class Hotkeys {
                     console.error("Error parsing existing hotkeys:", err);
                 }
             }
+            const systemAccelerators = new Set(Object.values(classInstance.getSystemHotkeys()).map(canonicalAccelerator));
+            if (systemAccelerators.has(canonicalAccelerator(hotkey))) {
+                classInstance.mainWindow.sendUpdate(`Conflict: "${acceleratorToDisplay(canonicalAccelerator(hotkey))}" is already used by a system hotkey.`);
+                return;
+            }
+
             const id = incomingId || (saved[hotkey] && saved[hotkey].id) || randomUUID();
 
             saved[hotkey] = { id, mapKey: mapkey };
@@ -99,7 +111,7 @@ class Hotkeys {
             // Check for conflicts with other system hotkeys
             const current = classInstance.getSystemHotkeys();
             for (const [otherActionId, otherAccel] of Object.entries(current)) {
-                if (otherActionId !== actionId && otherAccel === accelerator) {
+                if (otherActionId !== actionId && canonicalAccelerator(otherAccel) === canonicalAccelerator(accelerator)) {
                     const def = SYSTEM_HOTKEY_DEFS[otherActionId];
                     const name = def ? def.description : otherActionId;
                     classInstance.mainWindow.sendUpdate(`Conflict: "${acceleratorToDisplay(accelerator)}" is already bound to "${name}".`);
@@ -111,7 +123,8 @@ class Hotkeys {
             if (fs.existsSync(hotkeyFilePath)) {
                 try {
                     const customHotkeys = JSON.parse(fs.readFileSync(hotkeyFilePath, 'utf-8'));
-                    if (customHotkeys[accelerator]) {
+                    const target = canonicalAccelerator(accelerator);
+                    if (Object.keys(customHotkeys).some(hk => canonicalAccelerator(hk) === target)) {
                         classInstance.mainWindow.sendUpdate(`Conflict: "${acceleratorToDisplay(accelerator)}" is already used by a custom map hotkey.`);
                         return;
                     }
@@ -202,11 +215,11 @@ class Hotkeys {
         const win = this.mainWindow;
         if (!win) return;
 
-        const systemAccelerators = new Set(Object.values(this.getSystemHotkeys()));
+        const systemAccelerators = new Set(Object.values(this.getSystemHotkeys()).map(canonicalAccelerator));
 
         for (const [hotkey, { mapKey, id }] of Object.entries(hotkeys)) {
             // Skip if this accelerator is already used by a system hotkey
-            if (systemAccelerators.has(hotkey)) {
+            if (systemAccelerators.has(canonicalAccelerator(hotkey))) {
                 console.warn(`Skipping custom hotkey "${hotkey}" — conflicts with a system hotkey.`);
                 continue;
             }

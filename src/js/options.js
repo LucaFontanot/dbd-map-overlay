@@ -2,6 +2,7 @@ const {ipcRenderer} = require('electron');
 const {buildPreviewImage} = require('./overlay-preview');
 const {presetToGlide} = require('../core/overlay-position');
 const isWayland = require('../core/is-wayland');
+const {escapeHtml} = require('./html');
 
 
 class Options {
@@ -59,13 +60,12 @@ class Options {
             const select = $("#monitorSelect");
             select.empty();
             displays.forEach(d => {
-                select.append(`<option value="${d.index}">${d.label}</option>`);
+                select.append($('<option>').val(d.index).text(d.label));
             });
-            const saved = settings.settings['monitor'];
-            select.val(saved !== null && saved !== undefined ? saved : 0);
+            select.val(settings.get('monitor') ?? 0);
         });
 
-        if (settings.get("disableFaqPopup") !== null) {
+        if (settings.get("disableFaqPopup") === true) {
             $("#disableFaqPopupCheck").prop("checked", true);
         }
 
@@ -88,6 +88,12 @@ class Options {
                 .removeClass('d-none alert-info alert-success alert-danger')
                 .addClass(alerts[status.state] || 'alert-info')
                 .text(status.message || '');
+            if (status.code === 'OCR_NATIVE_LOAD_FAILED' && process.platform === 'win32') {
+                // Retrying can't help: the OCR runtime needs the VC++ 2015-2022 x64 redistributable
+                alert.append(' ', $('<a target="_blank" rel="noopener noreferrer">')
+                    .attr('href', 'https://aka.ms/vs/17/release/vc_redist.x64.exe')
+                    .text('Microsoft Visual C++ Redistributable (x64)'));
+            }
             if (status.state === 'ready') {
                 // Nothing to act on once the model is in place.
                 setTimeout(() => alert.addClass('d-none'), 4000);
@@ -196,12 +202,46 @@ class Options {
             await ipcRenderer.invoke('map-detector-start-automatic');
             bootstrap.Modal.getInstance(document.getElementById('languageRequiredModal')).hide();
         });
-        $("#sizeRange").on("input", async function (ev) {
-            var input = $(this);
-            var val = input.val();
-            await settings.set("size", val);
-            refreshOverlay()
-        }).val(settings.get("size"));
+        // Sliders: 'input' fires on every pixel of a drag. While dragging, the
+        // value is pushed to main at most every 60 ms (main positions the
+        // overlay from settings, so the live preview needs it there first);
+        // 'change' (drag end) always writes the final value immediately.
+        const liveSetting = (key, parse) => {
+            let pending = null;
+            let timer = null;
+            const flush = async () => {
+                timer = null;
+                if (pending === null) return;
+                const val = pending;
+                pending = null;
+                await settings.set(key, val);
+                refreshOverlay();
+            };
+            return {
+                input(raw) {
+                    pending = parse(raw);
+                    if (timer === null) timer = setTimeout(flush, 60);
+                },
+                async change(raw) {
+                    if (timer !== null) {
+                        clearTimeout(timer);
+                        timer = null;
+                    }
+                    pending = null;
+                    await settings.set(key, parse(raw));
+                    refreshOverlay();
+                },
+            };
+        };
+        const bindSlider = (selector, key, parse) => {
+            const live = liveSetting(key, parse);
+            return $(selector)
+                .on("input", function () { live.input($(this).val()); })
+                .on("change", function () { return live.change($(this).val()); });
+        };
+        const asString = (v) => v;
+        const asInt = (v) => parseInt(v, 10) || 0;
+        bindSlider("#sizeRange", "size", asString).val(settings.get("size"));
         // The corner preset doubles as a glide shortcut: picking a corner snaps
         // both sliders to it, then they can fine-tune from there
         const snapGlideToPreset = async () => {
@@ -218,12 +258,7 @@ class Options {
             await snapGlideToPreset();
             refreshOverlay()
         }).val(settings.get("position"));
-        $("#opacityRange").on("input", async function (ev) {
-            var input = $(this);
-            var val = input.val();
-            await settings.set("opacity", val);
-            refreshOverlay()
-        }).val(settings.get("opacity"));
+        bindSlider("#opacityRange", "opacity", asString).val(settings.get("opacity"));
         // Snap any stored value to the nearest quarter turn in case a stray
         // rotation ever got saved (e.g. via an older build)
         const savedRotation = (Math.round((parseInt(settings.get("rotation"), 10) || 0) / 90) * 90) % 360;
@@ -237,19 +272,10 @@ class Options {
             await settings.set("monitor", val);
             refreshOverlay();
         });
-        // Raw settings access: the get() wrapper turns a saved 0 into null,
-        // which here must mean "unset -- follow the corner preset" only
+        // A saved 0 is a real position; only null means "unset -- follow the corner preset"
         const initialCorner = presetToGlide(settings.get("position"));
-        const savedGlideX = settings.settings['glideX'];
-        const savedGlideY = settings.settings['glideY'];
-        $("#glideXRange").on("input", async function (ev) {
-            await settings.set("glideX", parseInt($(this).val(), 10) || 0);
-            refreshOverlay();
-        }).val(savedGlideX !== null && savedGlideX !== undefined ? savedGlideX : initialCorner.x);
-        $("#glideYRange").on("input", async function (ev) {
-            await settings.set("glideY", parseInt($(this).val(), 10) || 0);
-            refreshOverlay();
-        }).val(savedGlideY !== null && savedGlideY !== undefined ? savedGlideY : initialCorner.y);
+        bindSlider("#glideXRange", "glideX", asInt).val(settings.get("glideX") ?? initialCorner.x);
+        bindSlider("#glideYRange", "glideY", asInt).val(settings.get("glideY") ?? initialCorner.y);
         $("#glideReset").on("click", async function (ev) {
             await snapGlideToPreset();
             refreshOverlay();
@@ -259,13 +285,13 @@ class Options {
             ipcRenderer.send('set-mouse-drag', true);
             $("#unset-pos").show();
             $("#set-pos").hide();
-            this.setting = true;
+            classInstance.setting = true;
         })
         $("#unset-pos").on("click", function (ev) {
             ipcRenderer.send('set-mouse-drag', false);
             $("#unset-pos").hide();
             $("#set-pos").show();
-            this.setting = false;
+            classInstance.setting = false;
         })
         if (settings.get("disableFaqPopup") !== true || settings.get("disableFaqPopup") === null) {
             $("#warning").removeClass("d-none").addClass("show").slideDown();
@@ -318,7 +344,7 @@ class Options {
         const select = $("#preferredCreatorSelect");
         const current = select.val();
         select.empty().append(`<option value="">Any Creator</option>`);
-        creators.forEach(c => select.append(`<option value="${c}">${c}</option>`));
+        creators.forEach(c => select.append(`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`));
         select.val(current || this.settings.get("preferredCreator") || '');
         const synced = select.val();
         if (synced) $("#creatorSelect").val(synced);

@@ -64,6 +64,11 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
                 app.quit();
             });
         } else {
+            // `electron index.js` (dev) also lands here with argv length 2 and
+            // no show-map= arg -- log it so the silent quit is explainable.
+            if (!process.argv.some(arg => arg.startsWith('show-map='))) {
+                console.log("Another instance is already running; forwarding args and exiting.");
+            }
             console.log(`Sending args to application: ${process.argv.slice(1).join(" ")}`);
             app.quit();
         }
@@ -91,20 +96,20 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
         }
     }
 
-    if (gotLock) {
-        app.on('second-instance', (event, argv, workingDirectory) => {
-            const args = argv.slice(1);
-            args.forEach(arg => {
-                console.log(arg)
-                if (arg.startsWith('show-map=')) {
-                    const mapKey = arg.split('=')[1];
-                    console.log(`Opening map: ${mapKey}`);
-                    mainWindow.send('show-map-command', mapKey);
-                }
-            });
-            console.log(`Received args from second instance: ${args.join(" ")}`);
+    // Stream Deck buttons launch a second instance with `show-map=<key>`; it
+    // forwards its argv here and quits. These are user picks, so they go out on
+    // external-map-command (not the detector's show-map-command).
+    app.on('second-instance', (event, argv, workingDirectory) => {
+        const args = argv.slice(1);
+        args.forEach(arg => {
+            if (arg.startsWith('show-map=')) {
+                const mapKey = arg.slice(arg.indexOf('=') + 1);
+                console.log(`Opening map: ${mapKey}`);
+                mainWindow.send('external-map-command', mapKey);
+            }
         });
-    }
+        console.log(`Received args from second instance: ${args.join(" ")}`);
+    });
 
     function createWindow() {
         mainWindow.show()
@@ -113,14 +118,12 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
     }
 
     app.whenReady().then(() => {
-        if (gotLock) {
-            createWindow()
-            app.on('activate', () => {
-                if (BrowserWindow.getAllWindows().length === 0) {
-                    createWindow()
-                }
-            })
-        }
+        createWindow()
+        app.on('activate', () => {
+            if (BrowserWindow.getAllWindows().length === 0) {
+                createWindow()
+            }
+        })
     })
 
     app.on('window-all-closed', (w) => {
@@ -130,6 +133,9 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
     })
 
     app.on('before-quit', () => {
+        // Lets the main window's minimizeToTray close handler through, so OS
+        // shutdown and autoUpdater.quitAndInstall() are not blocked.
+        app.isQuiting = true;
         trayController.destroy();
     });
 }

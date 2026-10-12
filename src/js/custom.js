@@ -1,17 +1,12 @@
 const {ipcRenderer} = require("electron");
 const {debugLog} = require("./logger");
+const {escapeHtml} = require("./html");
 
 class Custom {
 
     constructor(images) {
         debugLog("custom::constructor::called");
         this.images = images;
-    }
-
-    async resizeImage(buffer) {
-        debugLog("custom::resizeImage::called", buffer.length);
-        debugLog("custom::resizeImage not implemented, using original image size");
-        return buffer;
     }
 
     async getFileFormBase64(file) {
@@ -43,17 +38,12 @@ class Custom {
             let imageBase64 = await this.getFileFormBase64($("#custom_file"));
             if (imageBase64 !== false) {
                 let imageBuffer = Buffer.from(imageBase64, "base64")
-                let resize = await this.resizeImage(imageBuffer);
-                if (resize !== false) {
-                    let name = $("#custom_name").val()
-                    name = name.replace(/\//g, " ");
-                    name = name.replace(/\\/g, " ");
-                    name = name.replace(/\./g, " ");
-                    await ipcRenderer.invoke('write-custom-data', name + ".png", resize)
-                    await this.images.invalidateCache()
-                } else {
-                    throw "Invalid image"
-                }
+                let name = $("#custom_name").val()
+                name = name.replace(/\//g, " ");
+                name = name.replace(/\\/g, " ");
+                name = name.replace(/\./g, " ");
+                await ipcRenderer.invoke('write-custom-data', name + ".png", imageBuffer)
+                await this.images.invalidateCache()
             } else {
                 throw "Invalid image"
             }
@@ -86,22 +76,22 @@ class Custom {
     async generateCustomList() {
         debugLog("custom::generateCustomList::called");
         try {
-            $("#customList").html("");
+            // Every file in the custom dir is listed, whether or not the gallery
+            // has rendered (and cached) it for the selected creator.
             let images_custom = await ipcRenderer.invoke('get-custom-photos')
+            const rows = [];
             for (let img of images_custom) {
-                let url = this.images.cacheBlob[img.toString()];
-                let type = this.images.cacheType[img];
-                if (type === "custom") {
-                    $("#customList").append(`<tr>
+                let url = await this.images.getImageUrl(img, "custom");
+                rows.push(`<tr>
                         <td>
-                            <img class="mr-3" style="width: 300px" src="${url}">
+                            <img class="mr-3" style="width: 300px" src="${escapeHtml(url)}" loading="lazy" decoding="async">
                         </td>
                         <td>
-                            <button type="button" class="ma-5 btn btn-danger" onclick="deleteImage(this)" data-img="${img}"  >Delete</button>
+                            <button type="button" class="ma-5 btn btn-danger" onclick="deleteImage(this)" data-img="${escapeHtml(img)}"  >Delete</button>
                         </td>
                     </tr>`)
-                }
             }
+            $("#customList").html(rows.join(""));
         } catch (e) {
             debugLog("custom::generateCustomList::error", e.message);
         }
