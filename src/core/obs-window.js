@@ -1,6 +1,7 @@
 const {BrowserWindow, shell} = require('electron')
 const path = require("path");
 const {lockDownWebContents} = require('./utils');
+const {securePreferences, loadPage} = require('./renderer-pages');
 
 
 class ObsWindow {
@@ -18,17 +19,14 @@ class ObsWindow {
         this.window = new BrowserWindow({
             width: 700,
             height: 700,
-            webPreferences: {
-                nodeIntegration: true,
-                contextIsolation: false
-            },
+            webPreferences: securePreferences('overlay-preload.js'),
             title: "DBD Map Overlay for OBS",
             icon: path.join(global.dirname, "build", "icon.png")
         })
         this.window.webContents.on('did-finish-load', () => {
             if (this.lastMapMessage) this.send(...this.lastMapMessage);
         });
-        this.window.loadFile('src/map/map_obs.html')
+        loadPage(this.window, 'obs')
         lockDownWebContents(this.window.webContents, shell);
         this.window.setMenu(null)
     }

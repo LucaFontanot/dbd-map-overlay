@@ -12,6 +12,21 @@ function canonicalAccelerator(accel) {
     return displayToAccelerator(accel || '');
 }
 
+// An unparsable accelerator makes register() throw ("conversion failure");
+// treat it like any other failed registration.
+function safeRegister(accelerator, callback) {
+    try {
+        return globalShortcut.register(accelerator, callback);
+    } catch (err) {
+        console.warn(`Invalid accelerator "${accelerator}":`, err.message);
+        return false;
+    }
+}
+
+function isShortString(value, max) {
+    return typeof value === 'string' && value.length > 0 && value.length <= max;
+}
+
 class Hotkeys {
 
     mainWindow;
@@ -24,8 +39,9 @@ class Hotkeys {
 
         // --- Custom map hotkeys ---
         ipcMain.on('save-hotkeys', (event, settings) => {
-            const { hotkey, mapkey, id: incomingId } = settings;
-            if (!hotkey || !mapkey) {
+            const { hotkey, mapkey, id: incomingId } = (settings && typeof settings === 'object') ? settings : {};
+            if (!isShortString(hotkey, 60) || !isShortString(mapkey, 400) ||
+                (incomingId !== undefined && !isShortString(incomingId, 100))) {
                 console.warn("Hotkey or map not selected");
                 return;
             }
@@ -66,6 +82,7 @@ class Hotkeys {
         });
 
         ipcMain.on('delete-hotkey', (event, id) => {
+            if (!isShortString(id, 100)) return;
             let saved = {};
 
             if (fs.existsSync(hotkeyFilePath)) {
@@ -94,14 +111,15 @@ class Hotkeys {
             return classInstance.getSystemHotkeys();
         });
 
-        ipcMain.on('save-system-hotkey', (event, { actionId, accelerator }) => {
-            if (!actionId || !accelerator) {
+        ipcMain.on('save-system-hotkey', (event, payload) => {
+            const { actionId, accelerator } = (payload && typeof payload === 'object') ? payload : {};
+            if (!isShortString(actionId, 40) || !isShortString(accelerator, 60)) {
                 console.warn("save-system-hotkey: missing actionId or accelerator");
                 classInstance.mainWindow.sendUpdate('Failed to save hotkey: missing data.');
                 return;
             }
 
-            const settingKey = ACTION_TO_SETTING_KEY[actionId];
+            const settingKey = Object.prototype.hasOwnProperty.call(ACTION_TO_SETTING_KEY, actionId) && ACTION_TO_SETTING_KEY[actionId];
             if (!settingKey) {
                 console.warn(`save-system-hotkey: unknown actionId "${actionId}"`);
                 classInstance.mainWindow.sendUpdate('Failed to save hotkey: unknown action.');
@@ -139,8 +157,9 @@ class Hotkeys {
             classInstance.loadKeys();
         });
 
-        ipcMain.on('reset-system-hotkey', (event, { actionId }) => {
-            const settingKey = ACTION_TO_SETTING_KEY[actionId];
+        ipcMain.on('reset-system-hotkey', (event, payload) => {
+            const actionId = payload && payload.actionId;
+            const settingKey = Object.prototype.hasOwnProperty.call(ACTION_TO_SETTING_KEY, actionId) && ACTION_TO_SETTING_KEY[actionId];
             if (!settingKey) {
                 console.warn(`reset-system-hotkey: unknown actionId "${actionId}"`);
                 return;
@@ -194,7 +213,7 @@ class Hotkeys {
             const ipcEvent = actionToIpc[actionId];
             if (!ipcEvent) continue;
 
-            const ok = globalShortcut.register(accelerator, () => {
+            const ok = safeRegister(accelerator, () => {
                 console.log(`${accelerator} pressed → ${ipcEvent}`);
                 win.send(ipcEvent);
             });
@@ -224,7 +243,7 @@ class Hotkeys {
                 continue;
             }
 
-            const ok = globalShortcut.register(hotkey, () => {
+            const ok = safeRegister(hotkey, () => {
                 console.log(`(${id}) ${hotkey} pressed → ${mapKey}`);
                 win.send('hotkey-pressed', mapKey);
             });

@@ -1,10 +1,23 @@
-const {ensureDirectoryExistence, getFilesFromDir, deleteDirectoryContents, safeJoin} = require("./utils");
-const {app, ipcMain} = require("electron");
+const {ensureDirectoryExistence, getFilesFromDir, safeJoin} = require("./utils");
+const {app, ipcMain, protocol, net} = require("electron");
+const {pathToFileURL} = require("url");
+const {imageSize} = require("image-size");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
-// Per-file MD5 cache for get-photo-hashes, keyed by relative path → {size, mtimeMs, md5}.
+// Gallery images are served to the renderer as dbd-img://photo/<key> and
+// dbd-img://custom/<key> instead of being copied over IPC.
+const IMAGE_SCHEME = "dbd-img";
+const IMAGE_KINDS = new Set(["photo", "custom"]);
+const MAX_CUSTOM_IMAGE_BYTES = 20 * 1024 * 1024;
+// Gallery thumbnails (?thumb): maps are up to 3840 px, decoding 200 of them
+// at full size cost hundreds of MB in the renderer.
+const THUMB_SIZE = 480;
+const thumbJobs = new Map();
+const CUSTOM_NAME = /^[^/\\\0]{1,120}\.png$/;
+
+// Per-file MD5 cache for photo-sync, keyed by relative path → {size, mtimeMs, md5}.
 // Lives inside the photo dir, so every listing of that dir must skip it.
 const MD5_CACHE_NAME = ".md5cache.json";
 
@@ -48,47 +61,117 @@ async function listFiles(dir) {
     return results;
 }
 
+/**
+ * WebP thumbnail of `file`, cached under <userData>/thumbs and rebuilt when
+ * the source is newer. Concurrent requests for the same file share one job.
+ * @returns {Promise<string>} thumbnail path
+ */
+async function thumbnailFor(kind, rel, file) {
+    const thumb = safeJoin(path.join(app.getPath('userData'), 'thumbs', kind), rel + '.webp');
+    const [source, cached] = await Promise.all([
+        fs.promises.stat(file),
+        fs.promises.stat(thumb).catch(() => null),
+    ]);
+    if (cached && cached.mtimeMs >= source.mtimeMs) return thumb;
+    if (!thumbJobs.has(thumb)) {
+        const job = (async () => {
+            // Lazy: sharp is heavy and only needed once per new/changed map
+            const sharp = require('sharp');
+            await fs.promises.mkdir(path.dirname(thumb), {recursive: true});
+            const tmp = `${thumb}.${process.pid}.tmp`;
+            await sharp(file)
+                .resize({width: THUMB_SIZE, height: THUMB_SIZE, fit: 'inside', withoutEnlargement: true})
+                .webp({quality: 82})
+                .toFile(tmp);
+            await fs.promises.rename(tmp, thumb);
+            return thumb;
+        })().finally(() => thumbJobs.delete(thumb));
+        thumbJobs.set(thumb, job);
+    }
+    return thumbJobs.get(thumb);
+}
+
 class UserData {
     constructor() {
         const readFile = async (kind, fileName) => {
-            const fileDir = safeJoin(baseDir(kind), fileName)
-            ensureDirectoryExistence(fileDir)
+            const file = safeJoin(baseDir(kind), fileName)
             try {
-                return await fs.promises.readFile(fileDir);
+                return await fs.promises.readFile(file);
             } catch (e) {
                 if (e.code !== 'ENOENT') console.error(`read ${kind} data failed:`, fileName, e);
                 return Buffer.from("")
             }
-        }
-        const writeFile = async (kind, fileName, data) => {
-            const fileDir = safeJoin(baseDir(kind), fileName)
-            ensureDirectoryExistence(fileDir)
-            await fs.promises.writeFile(fileDir, Buffer.from(data));
-        }
-        const deleteFile = async (kind, fileName) => {
-            const fileDir = safeJoin(baseDir(kind), fileName)
-            await fs.promises.rm(fileDir, {force: true});
         }
         const listDir = (kind) => {
             const fileDir = baseDir(kind)
             fs.mkdirSync(fileDir, {recursive: true})
             return getFilesFromDir(fileDir)
                 .map((file) => file.replace(fileDir.toString(), ""))
-                .filter((file) => !isCacheFile(file))
+                .filter((file) => !isCacheFile(file) && !file.endsWith(".part"))
         }
 
-        ipcMain.handle('read-user-data', (event, fileName) => readFile("photo", fileName))
+        // Only custom maps are written/deleted from the renderer; the photo
+        // dir belongs to photo-sync.js.
         ipcMain.handle('read-custom-data', (event, fileName) => readFile("custom", fileName))
-        ipcMain.handle('write-user-data', (event, fileName, data) => writeFile("photo", fileName, data))
-        ipcMain.handle('write-custom-data', (event, fileName, data) => writeFile("custom", fileName, data))
-        ipcMain.handle('delete-user-data', (event, fileName) => deleteFile("photo", fileName))
-        ipcMain.handle('delete-custom-data', (event, fileName) => deleteFile("custom", fileName))
+        ipcMain.handle('write-custom-data', async (event, fileName, data) => {
+            if (typeof fileName !== 'string' || !CUSTOM_NAME.test(fileName) || fileName.includes('..')) {
+                throw new Error('write-custom-data: invalid name');
+            }
+            if (!(data instanceof Uint8Array) || data.length === 0 || data.length > MAX_CUSTOM_IMAGE_BYTES) {
+                throw new Error('write-custom-data: invalid image data');
+            }
+            const buffer = Buffer.from(data);
+            try {
+                imageSize(buffer);
+            } catch (e) {
+                throw new Error('write-custom-data: not an image');
+            }
+            const file = safeJoin(baseDir("custom"), fileName)
+            ensureDirectoryExistence(file)
+            await fs.promises.writeFile(file, buffer);
+        })
+        ipcMain.handle('delete-custom-data', async (event, fileName) => {
+            await fs.promises.rm(safeJoin(baseDir("custom"), fileName), {force: true});
+        })
         ipcMain.handle('get-dir-photos', async () => listDir("photo"))
         ipcMain.handle('get-custom-photos', async () => listDir("custom"))
-        ipcMain.handle('clear-photos', async () => {
-            await deleteDirectoryContents(baseDir("photo"))
-        })
-        ipcMain.handle('get-photo-hashes', () => UserData.computePhotoHashes(baseDir("photo")))
+
+        UserData.registerImageProtocol();
+    }
+
+    /**
+     * dbd-img://<photo|custom>/<url-encoded relative path>. Must be called
+     * before app ready (scheme privileges), the handler is installed on ready.
+     */
+    static registerImageProtocol() {
+        protocol.registerSchemesAsPrivileged([{
+            scheme: IMAGE_SCHEME,
+            privileges: {standard: true, secure: true, supportFetchAPI: true},
+        }]);
+        app.whenReady().then(() => {
+            protocol.handle(IMAGE_SCHEME, async (request) => {
+                try {
+                    const url = new URL(request.url);
+                    if (!IMAGE_KINDS.has(url.hostname)) return new Response(null, {status: 404});
+                    const rel = decodeURIComponent(url.pathname);
+                    const file = safeJoin(baseDir(url.hostname), rel);
+                    if (isCacheFile(file)) return new Response(null, {status: 404});
+                    let served = file;
+                    if (url.searchParams.has('thumb')) {
+                        try {
+                            served = await thumbnailFor(url.hostname, rel, file);
+                        } catch (e) {
+                            // Unreadable by sharp: fall back to the original file
+                            if (e.code === 'ENOENT') return new Response(null, {status: 404});
+                            console.warn('dbd-img: thumbnail failed for', rel, e.message);
+                        }
+                    }
+                    return await net.fetch(pathToFileURL(served).toString());
+                } catch (e) {
+                    return new Response(null, {status: 404});
+                }
+            });
+        });
     }
 
     /**

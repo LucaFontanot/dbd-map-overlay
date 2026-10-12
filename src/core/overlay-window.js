@@ -1,5 +1,6 @@
 const {BrowserWindow, ipcMain, shell} = require('electron');
 const {lockDownWebContents} = require('./utils');
+const {securePreferences, loadPage} = require('./renderer-pages');
 
 // 'moved' never fires on Linux, so drags are also caught via 'move', debounced
 const MOVE_SAVE_DEBOUNCE_MS = 300;
@@ -12,8 +13,8 @@ class OverlayWindow {
         this.settings = settings || null;
         let classInstance = this;
         ipcMain.on('set-mouse-drag', async (event, drag) => {
-            if (!classInstance.window) return
-            if (drag) {
+            if (!classInstance.window || classInstance.window.isDestroyed()) return
+            if (drag === true) {
                 classInstance.window.setIgnoreMouseEvents(false);
             } else {
                 classInstance.window.setIgnoreMouseEvents(true);
@@ -41,12 +42,9 @@ class OverlayWindow {
             alwaysOnTop: true,
             frame: false,
             transparent: true,
-            webPreferences: {
-                nodeIntegration: true,
-                contextIsolation: false
-            }
+            webPreferences: securePreferences('overlay-preload.js')
         })
-        this.window.loadFile('src/map/map.html')
+        loadPage(this.window, 'overlay')
         lockDownWebContents(this.window.webContents, shell);
         // On Windows, 'screen-saver' level is not supported and gets silently ignored.
         // Use 'pop-up-menu' on Windows which correctly maps to HWND_TOPMOST and stays

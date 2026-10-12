@@ -13,12 +13,12 @@ Dead by Daylight minimap overlay. Electron desktop app (Windows + Linux). Shows 
 | Layer | Tech |
 |-------|------|
 | Runtime | Electron (Node.js, Chromium) |
-| Frontend | HTML/CSS/JS, Bootstrap 5, jQuery, Popper 2, Tom Select, Font Awesome (CSS vendored without webfonts: icons render blank), DOMPurify |
+| Frontend | Vue 3 + Vuetify 3 (SFCs, plain JS), Material Design Icons (`@mdi/font`), marked + DOMPurify. Built by Vite 6 into `out/renderer` |
 | OCR | PaddleOCR ONNX (`paddleocr` runtime + `onnxruntime-node`), main process |
 | Image processing | sharp, image-size |
 | Screenshots | node-screenshots (native addon) |
 | Auto-update | electron-updater (GitHub Releases) |
-| Build/packaging | electron-builder (NSIS, deb, rpm, AppImage) |
+| Build/packaging | Vite (renderer only) + electron-builder (NSIS, deb, rpm, AppImage) |
 | Package manager | Yarn (Berry/cache) |
 
 ## Architecture
@@ -27,7 +27,14 @@ Dead by Daylight minimap overlay. Electron desktop app (Windows + Linux). Shows 
 index.js                          → Entry point. Wayland detection → X11 fallback.
                                    Single-instance lock. Instantiates all modules.
 src/core/main-window.js           → Main Electron BrowserWindow. IPC hub for
-                                   map-change, display info, updates.
+                                   map-change, app-info, display info, updates.
+src/core/preload.js               → contextBridge `window.dbd` {invoke,send,on} with
+                                   allow-listed channels (main window).
+src/core/overlay-preload.js       → `window.overlay` {onMapChange,onMapHide}.
+src/core/renderer-pages.js        → securePreferences() + loadPage() (out/renderer).
+src/core/api.js                   → Lobby backend client + PoW challenge; owns the token.
+src/core/photo-sync.js            → Map catalog sync (images.json → <userData>/photo).
+src/core/docs.js                  → FAQ/changelog/credits/privacy Markdown fetch.
 src/core/overlay-window.js        → Transparent always-on-top overlay window.
                                    Position/size/opacity/rotation from settings.
 src/core/obs-window.js            → Separate window for OBS capture (no transparency).
@@ -51,13 +58,17 @@ src/core/map-match.js             → Pure Realm/Map → file-path matching (pre
                                    creator). Single source of map-name folding,
                                    levenshtein and Creator/Realm/Map path parsing
                                    (exports foldName, levenshtein, parseMapPath).
-src/core/user-data.js             → User photo/custom map storage.
+src/core/user-data.js             → Custom map storage IPC + `dbd-img://` protocol
+                                   (photo/custom files, ?thumb → cached WebP).
 src/core/utils.js                 → Shared utilities.
-src/renderer.js                   → Main window preload/renderer logic.
-src/js/*.js                       → Feature modules (settings UI, hotkeys UI,
-                                   lobby, streamdeck UI, privacy, images, logger).
-src/map/renderer.js               → Overlay window renderer (displays map images).
-src/map/renderer_obs.js           → OBS window renderer.
+src/renderer/index.html           → Main window page (Vue app src/renderer/main/).
+src/renderer/main/services/*.js   → Reactive stores/logic: settings, catalog (map
+                                   index + search), player (sendMap/overlay state,
+                                   preview), lobby, hotkeys, detection, ui, markdown.
+src/renderer/main/views/*.vue     → Maps, Lobby, Custom maps, Settings (tabs in
+                                   views/settings/), DocView (remote Markdown).
+src/renderer/overlay.html|obs.html → Overlay/OBS pages, both run overlay/overlay.js.
+vite.config.mjs                   → Multi-page build, root src/renderer → out/renderer.
 src/i18n/*.json                   → 15 language translation files.
 maps/<Creator>/<Realm>/<Map>.png  → Map images. Organized by creator → realm.
 picture-hash.js                   → Standalone: computes MD5 of all map files.
@@ -69,25 +80,27 @@ scripts/localization/             → Localization tooling (i18n extraction/merg
 
 ## Key Patterns
 
-- **No TypeScript** — plain CommonJS (`require`/`module.exports`), no build/transpile step.
-- **No context isolation** — `nodeIntegration: true`, `contextIsolation: false` in BrowserWindows.
-- **IPC**: Main ↔ renderer via `ipcMain.handle`/`ipcMain.on` (main) and `ipcRenderer.invoke`/`ipcRenderer.on` (renderer).
-- **Settings**: main owns `settings-app.json` (`src/core/settings.js`, EventEmitter, plain JSON — not electron-store). Renderer writes ONE key via `ipcRenderer.invoke('set-setting', key, value)` (returns full object) and refreshes its cache on `settings-updated`, which main broadcasts after every change. Never send the whole object (old `save-settings` let a stale renderer copy clobber keys main writes: overlayX/Y, hotkeys, mapDetection). Disk writes are debounced 250 ms (tmp+rename), flushed on `will-quit`; a corrupt file is backed up to `.bak` and defaults load. Renderer `settings.get()` uses `??`: a saved `false` stays `false` — compare with `=== true`/`!== false`, never `!== null`. `settings.ready` is the single init promise.
-- **Security helpers** (`src/core/utils.js`): `safeJoin(base, rel)` for every IPC path under userData (map-change, user-data handlers) — rejects escapes; `lockDownWebContents` on every BrowserWindow (window-open → `openExternal` only for http(s), always deny; `will-navigate` blocked). Renderer: any server/file-derived string in template HTML goes through `escapeHtml` (`src/js/html.js`); remote markdown (`privacy.js`) through DOMPurify. Lobby `map`/`rotation` from the server are validated (`images.resolveLocalMapPath`). Never log the API token or base64 payloads (`api.js` `redact()`); logger is a 2000-entry ring buffer.
+- **No TypeScript** — main/preload are plain CommonJS, never bundled. The renderer is ES modules + Vue SFCs built by Vite (`npm run build:renderer`, run by `npm start` and every build script). Vite 6, not 7/8: they need Node ≥20.19 (rolldown binding) and the system Node is 20.15.
+- **Renderer is untrusted**: every BrowserWindow uses `securePreferences()` (`contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`) and a CSP meta tag. Renderer code has no `require`/`process`/Buffer — only `window.dbd`. A new IPC channel must be added to the allow-list in `src/core/preload.js` AND validate its arguments in main. Network calls (lobby API, catalog sync, docs) run in main; the renderer CSP has `connect-src 'self'`.
+- **Shared CJS in the renderer**: `src/core/map-match.js`, `src/core/overlay-position.js` and `src/shared/*` are imported by renderer code as default imports (`import mapMatch from '@core/map-match.js'`); `vite.config.mjs` `commonjsOptions.include` lists them. Keep them pure (no electron/fs). Vite has no dev server here (it can't serve CJS source): use `npm run dev:renderer` (build --watch) + `electron .`.
+- **IPC**: Main ↔ renderer via `ipcMain.handle`/`ipcMain.on` (main) and `window.dbd.invoke`/`send`/`on` (renderer; `on` returns an unsubscribe function and never exposes the IpcRendererEvent).
+- **Settings**: main owns `settings-app.json` (`src/core/settings.js`, EventEmitter, plain JSON — not electron-store). Renderer writes ONE key via `dbd.invoke('set-setting', key, value)` (returns full object); main only accepts keys in `RENDERER_WRITABLE` with a valid value (token/id/overlayX/Y/hotkey accelerators are main-only) and never sends `token` to a renderer (`forRenderer()`) and refreshes its cache on `settings-updated`, which main broadcasts after every change. Never send the whole object (old `save-settings` let a stale renderer copy clobber keys main writes: overlayX/Y, hotkeys, mapDetection). Disk writes are debounced 250 ms (tmp+rename), flushed on `will-quit`; a corrupt file is backed up to `.bak` and defaults load. Renderer `settings.get()` uses `??`: a saved `false` stays `false` — compare with `=== true`/`!== false`, never `!== null`. `settings.init()` is the single init promise.
+- **Security helpers** (`src/core/utils.js`): `safeJoin(base, rel)` for every IPC/protocol path under userData (map-change, custom data, `dbd-img://`) — rejects escapes; `lockDownWebContents` on every BrowserWindow (window-open → `openExternal` only for http(s), always deny; `will-navigate` blocked). Renderer: Vue escapes interpolations; the only `v-html` is remote Markdown through DOMPurify (`services/markdown.js`). `write-custom-data` accepts only `<name>.png` (no separators), ≤20 MB, parseable by image-size. Stream Deck pages are built in main (`streamdeck:create`): realm/map names are shell-checked, files only go to the flatpak data dir or a folder picked through `dialog:selectDirectory`. Lobby `map`/`rotation` from the server are validated (`catalog.resolveLocalMapPath`). Never log the API token or base64 payloads (`api.js` `redact()`); renderer logger is a 2000-entry ring buffer (Settings → General → Debug log).
 - **Map key format**: `Creator/Realm/MapName` (case-insensitive, no extension). Fuzzily matched to `maps/` directory.
-- **Preferred creator**: Settings `preferredCreator` is the saved default auto-detect uses (`src/core/map-match.js`). Home `#creatorSelect` only filters the gallery and remaps the current overlay; it does not write `preferredCreator`. Changing either dropdown mid-match remaps to the same map in that layout and keeps the detector running (`fromDetector: true`). Auto-detect keeps `findClosestMapMatch` `fallback: true`, so a map the preferred creator lacks locally silently resolves to another artist's PNG; `images.js` logs `show-map-command::creator-fallback` when that happens (usual cause is a stale/incomplete preferred-creator download, not a matcher bug).
+- **Preferred creator**: Settings `preferredCreator` is the saved default auto-detect uses (`src/core/map-match.js`). The gallery creator filter (`ui.galleryCreator`) only filters the gallery and remaps the current overlay; it does not write `preferredCreator`. Changing either dropdown mid-match remaps to the same map in that layout and keeps the detector running (`fromDetector: true`). Auto-detect keeps `findClosestMapMatch` `fallback: true`, so a map the preferred creator lacks locally silently resolves to another artist's PNG; `player.js` logs `show-map-command::creator-fallback` when that happens (usual cause is a stale/incomplete preferred-creator download, not a matcher bug).
 - **Map matching**: `findClosestMapMatch` canonicalizes names (accents, apostrophes, leading `The`, ` - Istari`, parenthetical floors, trailing numbers/EU/NA) then scores closest map name; if needed, matches swapped realm/map folders or a unique file in the same realm. Layout swaps pass `{fallback: false}` so another artist's PNG is never substituted. Detector identities are kept as English `Realm/Map` (not the artist filename).
-- **map-match.js is the single source** for map-name helpers shared by both processes: `foldName` (re-exported by `realm-catalog.js`), `levenshtein` (used by `ocr-matcher.js`) and `parseMapPath` (Creator/Realm/Map splitting used by `images.js` catalog build + `hotkeys.js` labels). Do not re-implement name folding, edit distance, or path parsing elsewhere — import from `map-match.js`. Main-process detector modules reach it via `require('../map-match')`; it is pure (no electron/fs) and safe to load in main and renderer.
+- **map-match.js is the single source** for map-name helpers shared by both processes: `foldName` (re-exported by `realm-catalog.js`), `levenshtein` (used by `ocr-matcher.js`) and `parseMapPath` (Creator/Realm/Map splitting used by the renderer catalog + hotkey labels). Do not re-implement name folding, edit distance, or path parsing elsewhere — import from `map-match.js`. Main-process detector modules reach it via `require('../map-match')`; it is pure (no electron/fs) and safe to load in main and renderer.
 - **Realm vs map classification**: `OcrMatcher` reports a name as a map, a realm only as context. What counts as a realm = `FALLBACK_REALMS` (`src/core/map-detector/fallback-realms.js`, the maintained authority — add new DLC realms there, e.g. `sleepless district`) ∪ photo-dir realm folders that are **not** map names (`realm-catalog.js` filters them). Some creators (KaiserAleex, SamoelColt) store the Crotus Prenn Asylum maps under a folder literally named `Disturbed Ward` — a MAP; letting that folder into the realm set makes OcrMatcher classify the loading line as a realm and the map becomes undetectable. Never name a realm folder after a map.
-- **Home search bar** (`src/js/images.js` `searchMaps`): substring hits first (legacy), then token-level fuzzy via `foldName`/`levenshtein` from `map-match.js` — a misspelled map/realm name still surfaces results, ranked by edit distance. Query/candidate tokens are folded (accents/apostrophes) and compared with a per-token distance threshold.
-- **Map change flow**: Renderer picks map → sends `map-change` IPC with base64 or file path → MainWindow reads file (`safeJoin`, stale requests dropped by a counter), computes size, positions overlay → forwards raw bytes (`Uint8Array`, not base64) to overlay/obs windows. `ObsWindow` replays the last map message on `did-finish-load` (a map sent while it opens would otherwise be lost).
-- **Map pick channels**: `show-map-command` = detector pick (`fromDetector: true`, detector keeps running); `external-map-command` = Stream Deck / second-instance `show-map=` (user pick). Both guard a null `findClosestMapMatch`.
-- **Photo sync**: `remoteUpdateImages` compares against `get-photo-hashes` (main, cache `<userData>/photo/.md5cache.json` keyed size+mtime, hidden from photo listings), verifies downloaded md5 against `images.json`, 4 parallel downloads; then calls `map-detector-reload-realms` so first-run realms are known without restart. Custom vs standard images is by source (`images.customPaths` / `typeOf`), not by gallery cache.
+- **Home search bar** (`src/renderer/main/services/catalog.js` `search`): substring hits first (legacy), then token-level fuzzy via `foldName`/`levenshtein` from `map-match.js` — a misspelled map/realm name still surfaces results, ranked by edit distance. Query/candidate tokens are folded (accents/apostrophes) and compared with a per-token distance threshold.
+- **Map change flow**: Renderer picks map (`player.sendMap`) → sends `map-change` IPC with base64 or file path → MainWindow reads file (`safeJoin`, stale requests dropped by a counter), computes size, positions overlay → forwards raw bytes (`Uint8Array`, not base64) to overlay/obs windows. `ObsWindow` replays the last map message on `did-finish-load` (a map sent while it opens would otherwise be lost).
+- **Map pick channels**: `show-map-command` = detector pick (`fromDetector: true`, detector keeps running); `external-map-command` = Stream Deck / second-instance `show-map=` (user pick). Both guard a null `findClosestMapMatch` and wait for `catalog.whenLoaded()` (a command arriving during the startup sync is no longer dropped).
+- **Photo sync** (`src/core/photo-sync.js`, main): renderer calls `maps-sync` once at startup and shows `maps-sync-progress`. Compares `images.json` with `UserData.computePhotoHashes` (cache `<userData>/photo/.md5cache.json` keyed size+mtime, hidden from listings), verifies md5, writes via `.part`+rename, 4 parallel downloads, then `mapDetector.reloadRealms()` so first-run realms are known without restart. An empty/unparseable catalog never deletes local maps. Custom vs standard images is by source (`catalog.typeOf`).
+- **Gallery images**: `dbd-img://photo|custom/<encoded path>` (`catalog.imageUrl`), registered privileged before ready in `user-data.js`. `?thumb=1` serves a 480 px WebP from `<userData>/thumbs` (rebuilt when the source mtime is newer): source maps are up to 3840 px. Custom URLs carry `?v=<customVersion>` because files can be overwritten under the same name.
 - **Wayland**: Detected at startup, respawns with `--ozone-platform=x11`.
 - **Linux console noise**: Chromium installs a GLib log handler that forwards GLib messages to `LOG(ERROR)` (`browser_main_loop.cc`), so every `sharp`/libvips call prints pages of `GLib-GObject: g_object_ref: assertion 'G_IS_OBJECT (object)' failed` (libvips is GObject-based) — looks like capture spam because `map-detector.js` and `ocr-service.js` both crop with sharp right after each screenshot. Harmless, but `index.js` sets `app.commandLine.appendSwitch('log-level', '3')` (FATAL-only) on Linux to silence it; the switch must precede `app.whenReady()`. Windows keeps Chromium's error log on purpose (no GLib handler there). Verified: 1248 such lines in a 25 s run → 0 after the switch. Standalone Electron scripts (`scripts/detector-test.js`) don't set it, so they still print it.
 - **Single instance**: `app.requestSingleInstanceLock()` — second instance sends args (`show-map=...`) to first via IPC then quits.
 - **Versioning**: `package.json` version. electron-updater reads GitHub Releases.
-- **In-app docs**: FAQ/CHANGELOG/CREDITS/Privacy modals fetch Markdown at runtime from GitHub raw master (`src/js/consts.js` → `raw.githubusercontent.com/LucaFontanot/dbd-map-overlay/master/`). Doc edits only reach users once committed and **pushed** to upstream master.
+- **In-app docs**: FAQ/CHANGELOG/CREDITS/Privacy pages fetch Markdown at runtime from GitHub raw master via main (`docs-get`, `src/core/docs.js` → `raw.githubusercontent.com/LucaFontanot/dbd-map-overlay/master/`, 10 min cache). Doc edits only reach users once committed and **pushed** to upstream master.
 - **Auto-detect is toggle-only** (v1.6.5+): no hotkey triggers it. The old per-match Ctrl+D one-shot was removed in `d9ccb0e`; no Ctrl+Q exists. Detection = `MapDetector` state machine (`src/core/map-detector/`), started by the "Auto-detect map" switch in the bottom bar.
 - **OCR engine** (PaddleOCR, since the tesseract migration): runs in the **main process** via `src/core/ocr/` — `paddleocr` (pure-TS runtime) + `onnxruntime-node`. No hidden window, no bundler, no WASM host: never move OCR into a renderer, the Node path is the whole point.
   - One shared detection model (`PP-OCRv5_mobile_det`) + one recognition model per script group, chosen from the `ocrLanguage` setting. Setting values are still tesseract codes (`eng`, `deu`, `rus`, `chi_tra`, …) on purpose — `model-catalog.js` maps them, so existing user settings keep working. 'all' is blocked by the UI for auto-start (`index.js`) and falls back to trying every group.
@@ -103,11 +116,13 @@ scripts/localization/             → Localization tooling (i18n extraction/merg
   - Standalone Electron scripts (`scripts/detector-test.js`) must call `app.setName(<package.json name>)` before using paths, or Electron picks its own app name and the script downloads a second copy of the models into `~/.config/Electron`.
   - `onnxruntime-node`'s native library drops a 51-byte `:memory:.ses` (timestamp + uuid) in the **process CWD** the first time a session is created — expected upstream artefact, harmless (it silently skips the write in a read-only directory), and the reason a stray `:memory:.ses` shows up in the repo root after running the CLI/detector tests.
   - **Packaging**: `onnxruntime-node` ships every platform plus CUDA/TensorRT providers (~548 MB). `package.json` `build.files` excludes the providers, `darwin/**` and the Windows-only DirectML/dxcompiler/dxil DLLs (verified: `onnxruntime.dll` does not statically import them, so CPU inference loads without them), and `asarUnpack` keeps the `.node`/`.so`/`.dll` outside the asar. Exclusions are literal paths on purpose — `${os}`/`${arch}` macros resolve against the **host** platform, which silently emptied the Windows package, and electron-builder already drops `*.so` for Windows targets and `*.dll` for Linux ones. `build.files` also excludes `test/**` (~120 MB fixtures), `*.traineddata`, `:memory:.ses`, `**/*.md` (docs are fetched from GitHub, never read locally). In a combined `-wl` run the module set is searched once, so both packages end up carrying both platforms' (harmless, inert) binaries. Verified with `ELECTRON_RUN_AS_NODE=1 dist/linux-unpacked/<binary> <script>` that the packaged asar + unpacked native libs load.
+- **Renderer packaging**: renderer-only libs (vue, vuetify, @mdi/font, marked, dompurify) are devDependencies — Vite bundles them, so they stay out of the asar. `build.files` excludes `src/renderer/**` and `vite.config.mjs`; `out/renderer` ships. The overlay preview tab shows a canvas sample map (`services/overlay-preview.js`) while `ui.view === 'settings' && ui.settingsTab === 'overlay'` and the page is visible.
 
 ## Commands
 
 ```bash
-yarn start              # Run in dev mode
+yarn start              # Build the renderer (Vite) and run in dev mode
+npm run dev:renderer    # Rebuild the renderer on change (run electron . alongside)
 yarn build              # Build Windows + Linux (calls prebuild.sh first)
 yarn build:win          # Windows only
 yarn build:linux        # Linux only
@@ -133,7 +148,7 @@ OCR_MODELS_DIR=/path/to/ocr-models npm test
 
 ## i18n
 
-Translation JSON files in `src/i18n/`. Keys are map names (English). UI strings are hardcoded in HTML/JS — no i18n framework, just lang-specific JSON for map name lookup. Localization tooling in `scripts/localization/`.
+Translation JSON files in `src/i18n/`. Keys are map names (English). UI strings are hardcoded in the Vue components — no i18n framework, just lang-specific JSON for map name lookup. Localization tooling in `scripts/localization/`.
 
 ## CI/CD
 

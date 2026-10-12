@@ -1,0 +1,27 @@
+* {
+    margin: 0;
+}
+
+::-webkit-scrollbar {
+    display: none;
+}
+
+/* Center the map so rotation pivots around the window center -- the
+   window itself is sized to the rotated bounding box by the main process */
+body.overlay {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+/* OBS chroma key */
+body.obs {
+    background-color: #00ff00;
+}
+
+#map[hidden] {
+    display: none;
+}

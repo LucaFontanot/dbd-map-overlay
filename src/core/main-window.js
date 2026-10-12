@@ -5,6 +5,8 @@ const fs = require("fs");
 const { imageSize } = require('image-size')
 const { computeOverlayPosition, rotatedSize } = require('./overlay-position');
 const { safeJoin, lockDownWebContents } = require('./utils');
+const { securePreferences, loadPage } = require('./renderer-pages');
+const isWayland = require('./is-wayland');
 
 const debug = process.env.DEBUG === 'true';
 
@@ -23,11 +25,15 @@ class MainWindow {
         ipcMain.on('obs-open', async (event, map) => {
             obsWindow.show()
         });
-        ipcMain.handle('version', async (event, dir) => {
+        ipcMain.handle('app-info', async () => ({
             // Read this app's package.json — app.getVersion() can pick up
             // Electron's own version (40.x) when running from `npm start`.
-            return require('../../package.json').version;
-        })
+            version: require('../../package.json').version,
+            platform: process.platform,
+            // The env vars survive the x11 relaunch (see index.js), so this
+            // still detects the real session type
+            wayland: isWayland(),
+        }))
         ipcMain.handle('get-displays', async () => {
             return screen.getAllDisplays().map((display, index) => {
                 // bounds is logical (DPI-scaled) pixels, not physical ones -- show the
@@ -50,7 +56,7 @@ class MainWindow {
         this.overlayRequest = 0;
         this.obsRequest = 0;
         ipcMain.on('map-change', async (event, map, opts = {}) => {
-            opts = opts || {};
+            opts = (opts && typeof opts === 'object') ? opts : {};
             const request = {overlay: ++this.overlayRequest, obs: opts.preview ? null : ++this.obsRequest};
             try {
                 await this.applyMapChange(map, opts, request);
@@ -59,7 +65,7 @@ class MainWindow {
             }
         });
         settings.on('change', () => {
-            this.send('settings-updated', settings.settings);
+            this.send('settings-updated', settings.forRenderer());
         });
         this.registerUpdater();
     }
@@ -175,12 +181,12 @@ class MainWindow {
             this.window = null;
         }
         this.window = new BrowserWindow({
-            width: 1000,
-            height: 600,
-            webPreferences: {
-                nodeIntegration: true,
-                contextIsolation: false
-            },
+            width: 1180,
+            height: 760,
+            minWidth: 760,
+            minHeight: 520,
+            backgroundColor: '#0d0e12',
+            webPreferences: securePreferences('preload.js'),
             title: "DBD Map Overlay",
             icon: path.join(global.dirname, "build", "icon.png"),
         })
@@ -207,7 +213,7 @@ class MainWindow {
             }
             return false;
         });
-        this.window.loadFile('src/index.html')
+        loadPage(this.window, 'index')
 
         lockDownWebContents(this.window.webContents, shell);
 

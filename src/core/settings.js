@@ -29,6 +29,35 @@ const defaultConfig = {
     hotkeyRotateMap: 'CommandOrControl+R'
 };
 
+const isBool = (v) => typeof v === 'boolean';
+const isFiniteNumber = (v) => typeof v === 'number' && Number.isFinite(v);
+const isNumberish = (v) => isFiniteNumber(v) || (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)));
+const isShortString = (v) => typeof v === 'string' && v.length <= 200;
+const isPercentOrNull = (v) => v === null || (isFiniteNumber(v) && v >= 0 && v <= 100);
+
+// Keys the renderer may write, with their validator. Everything else (token,
+// id, overlayX/Y, hotkey accelerators) is written by main only.
+const RENDERER_WRITABLE = {
+    size: isNumberish,
+    position: isNumberish,
+    opacity: isNumberish,
+    draggable: isBool,
+    hideOverlay: isBool,
+    minimizeToTray: isBool,
+    disableFaqPopup: isBool,
+    rotation: (v) => isFiniteNumber(v) && v >= 0 && v < 360,
+    monitor: (v) => Number.isInteger(v) && v >= 0,
+    glideX: isPercentOrNull,
+    glideY: isPercentOrNull,
+    mapDetection: isBool,
+    ocrLanguage: isShortString,
+    preferredCreator: isShortString,
+    detectInCustoms: isBool,
+};
+
+// Never leaves main: the lobby API runs here (src/core/api.js)
+const PRIVATE_KEYS = ['token'];
+
 /**
  * Main-process owner of settings-app.json. Renderers never write the whole
  * object: they send single keys via `set-setting`, so a stale renderer copy
@@ -60,12 +89,13 @@ class Settings extends EventEmitter {
 
         let classInstance = this;
         ipcMain.handle('get-settings', async (event) => {
-            return classInstance.settings
+            return classInstance.forRenderer()
         })
         ipcMain.handle('set-setting', async (event, key, value) => {
-            if (typeof key !== 'string' || !key) throw new Error('set-setting: key must be a non-empty string');
+            const valid = Object.prototype.hasOwnProperty.call(RENDERER_WRITABLE, key) && RENDERER_WRITABLE[key](value);
+            if (!valid) throw new Error(`set-setting: refused ${String(key).slice(0, 40)}`);
             classInstance.set(key, value);
-            return classInstance.settings;
+            return classInstance.forRenderer();
         })
     }
 
@@ -90,6 +120,13 @@ class Settings extends EventEmitter {
             }
             return {...defaultConfig};
         }
+    }
+
+    /** Copy of the settings without the keys that must stay in main. */
+    forRenderer() {
+        const copy = {...this.settings};
+        for (const key of PRIVATE_KEYS) delete copy[key];
+        return copy;
     }
 
     get(key) {
@@ -124,3 +161,4 @@ class Settings extends EventEmitter {
 }
 
 module.exports = Settings;
+module.exports.RENDERER_WRITABLE = RENDERER_WRITABLE;

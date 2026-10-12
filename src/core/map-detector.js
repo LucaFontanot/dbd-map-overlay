@@ -188,6 +188,11 @@ class MapDetector {
      * then augmenting from the actual photo directory structure so future
      * DLC realms are picked up automatically once images are downloaded.
      */
+    /** Re-scan the photo dir for realm folders (after a catalog sync). */
+    reloadRealms() {
+        return this._loadRealmKeys();
+    }
+
     _loadRealmKeys() {
         for (const r of FALLBACK_REALMS) this.realmKeys.add(r);
         console.log(`MapDetector: loaded ${FALLBACK_REALMS.size} fallback realm(s)`);

@@ -1,0 +1,163 @@
+html, body {
+    overflow: hidden;
+}
+
+.v-application {
+    font-family: "Inter", "Segoe UI", "Noto Sans", Roboto, system-ui, sans-serif;
+    background:
+        radial-gradient(1200px 600px at 100% -10%, rgba(224, 53, 63, 0.10), transparent 60%),
+        radial-gradient(900px 500px at -10% 110%, rgba(201, 165, 74, 0.06), transparent 60%),
+        rgb(var(--v-theme-background)) !important;
+}
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.22);
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.brand-title {
+    font-family: Georgia, "Times New Roman", serif;
+    letter-spacing: 0.02em;
+}
+
+kbd {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-bottom-width: 2px;
+    font-family: ui-monospace, "JetBrains Mono", Consolas, monospace;
+    font-size: 0.85em;
+    white-space: nowrap;
+}
+
+.page {
+    height: 100%;
+    overflow-y: auto;
+}
+
+.page-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 28px 48px;
+}
+
+.page-title {
+    font-size: 1.6rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.page-subtitle {
+    opacity: 0.65;
+    margin-bottom: 20px;
+}
+
+/* Remote Markdown (FAQ, changelog, ...) */
+.markdown-body {
+    line-height: 1.65;
+    word-wrap: break-word;
+}
+
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+    margin: 1.4em 0 0.5em;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.markdown-body h1 {
+    font-size: 1.6rem;
+}
+
+.markdown-body h2 {
+    font-size: 1.3rem;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.markdown-body h3 {
+    font-size: 1.1rem;
+}
+
+.markdown-body > :first-child {
+    margin-top: 0;
+}
+
+.markdown-body p, .markdown-body ul, .markdown-body ol, .markdown-body blockquote, .markdown-body table, .markdown-body pre {
+    margin: 0 0 1em;
+}
+
+.markdown-body ul, .markdown-body ol {
+    padding-left: 1.6em;
+}
+
+.markdown-body a {
+    color: rgb(var(--v-theme-secondary));
+}
+
+.markdown-body img {
+    max-width: 100%;
+}
+
+.markdown-body code {
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.07);
+    font-size: 0.9em;
+}
+
+.markdown-body pre {
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.35);
+    overflow-x: auto;
+}
+
+.markdown-body pre code {
+    padding: 0;
+    background: none;
+}
+
+.markdown-body blockquote {
+    padding: 0.2em 1em;
+    border-left: 3px solid rgb(var(--v-theme-primary));
+    opacity: 0.85;
+}
+
+.markdown-body table {
+    border-collapse: collapse;
+}
+
+.markdown-body th, .markdown-body td {
+    padding: 6px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.markdown-body hr {
+    border: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin: 1.5em 0;
+}
+
+/* Unchecked switches were nearly invisible on the dark surface */
+.v-switch .v-switch__track {
+    background-color: rgba(255, 255, 255, 0.2);
+    opacity: 1;
+}

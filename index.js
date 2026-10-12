@@ -44,6 +44,9 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
     const TrayController = require("./src/core/tray");
     const StreamDeck = require("./src/core/stream-deck");
     const MapDetector = require("./src/core/map-detector");
+    const API = require("./src/core/api");
+    const PhotoSync = require("./src/core/photo-sync");
+    const Docs = require("./src/core/docs");
 
 
     const gotLock = app.requestSingleInstanceLock();
@@ -85,6 +88,10 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
     const streamDeck = new StreamDeck();
     const mapDetector = new MapDetector(mainWindow, settings);
     mainWindow.mapDetector = mapDetector;
+    const api = new API(settings);
+    // First run: realm folders only exist after the first sync
+    new PhotoSync(mainWindow, {onSynced: () => mapDetector.reloadRealms()});
+    new Docs();
 
     if (settings.get('mapDetection')) {
         const ocrLang = (settings.get('ocrLanguage') || 'all').trim();
@@ -119,6 +126,7 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
 
     app.whenReady().then(() => {
         createWindow()
+        api.ensureRegistered()
         app.on('activate', () => {
             if (BrowserWindow.getAllWindows().length === 0) {
                 createWindow()
