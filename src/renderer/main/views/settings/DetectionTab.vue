@@ -22,6 +22,26 @@
       </v-col>
     </v-row>
 
+    <v-row class="mt-2">
+      <v-col cols="12" md="6">
+        <div class="label">Detection mode</div>
+        <v-select :model-value="detection.mode" :items="modes" hide-details
+                  prepend-inner-icon="mdi-radar" @update:model-value="setMode"/>
+        <div class="text-caption opacity-60 mt-2">
+          <template v-if="detection.mode === 'keybind'">
+            Nothing runs in the background. Press
+            <kbd>{{ acceleratorToDisplay(hotkeys.systemAccelerator('detect-map')) }}</kbd>
+            while the map name is on screen at the start of the match (change it in Hotkeys).
+            Pick a key the game doesn't use: the app takes it over.
+          </template>
+          <template v-else>
+            Watches the screen for loading screens and reads the map name on its own.
+            Try keybind mode if you notice lag spikes during matches.
+          </template>
+        </div>
+      </v-col>
+    </v-row>
+
     <v-expand-transition>
       <v-alert v-if="status" :type="statusType" class="mt-5" :title="statusTitle">
         {{ status.message }}
@@ -33,7 +53,8 @@
       </v-alert>
     </v-expand-transition>
 
-    <v-list class="bg-transparent pa-0 mt-4" lines="two">
+    <!-- Keybind mode only reads the map name: no lobby or end-of-match checks -->
+    <v-list v-if="detection.mode !== 'keybind'" class="bg-transparent pa-0 mt-4" lines="two">
       <v-list-item class="px-0">
         <v-list-item-title>Detect maps in custom matches</v-list-item-title>
         <v-list-item-subtitle>When off, bot matches and private lobbies are skipped.</v-list-item-subtitle>
@@ -65,8 +86,13 @@ import {player} from '../../services/player';
 import {detection} from '../../services/detection';
 import {ui, notify} from '../../services/ui';
 import {OCR_LANGUAGES, VC_REDIST_URL} from '../../services/constants';
+import {hotkeys, acceleratorToDisplay} from '../../services/hotkeys';
 
 const languages = [{value: 'all', title: 'All languages (slow)'}, ...OCR_LANGUAGES];
+const modes = [
+  {value: 'automatic', title: 'Automatic (watches the screen)'},
+  {value: 'keybind', title: 'Keybind (press a key to detect)'},
+];
 const creators = computed(() => [{title: 'Any creator', value: ''}, ...catalog.state.creators.map(c => ({title: c, value: c}))]);
 
 const status = computed(() => detection.state.modelStatus);
@@ -86,6 +112,14 @@ async function save(key, value) {
 async function setLanguage(lang) {
   try {
     await detection.setLanguage(lang);
+  } catch (e) {
+    notify(`Auto-detect: ${e.message}`, 'error');
+  }
+}
+
+async function setMode(mode) {
+  try {
+    await detection.setMode(mode);
   } catch (e) {
     notify(`Auto-detect: ${e.message}`, 'error');
   }

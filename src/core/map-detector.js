@@ -16,11 +16,14 @@
  * Detection uses an automatic, always-on DetectionStateMachine
  * (IDLE → HUNTING → MATCH_ACTIVE) that stays cheap while idle and only runs
  * the full OCR pipeline while a match is loading.
+ * In "keybind" mode (setting detectionMode) there is no loop at all: a global
+ * hotkey calls triggerKeybindDetection(), which runs a short burst of
+ * map-title reads (KeybindDetector) — for users who get lag spikes in matches.
  * The ONNX sessions stay loaded for as long as detection is on (across matches
  * and manual map changes) and are released only by stopAutomatic().
  *
  * IPC handles exposed to the renderer:
- *   map-detector-status           → returns Boolean (is the automatic loop running)
+ *   map-detector-status           → returns Boolean (is detection running, either mode)
  *   map-detector-reload-realms    → re-scans photo dir for new realm names
  *   map-detector-start-automatic  → startAutomatic()
  *   map-detector-stop-automatic   → stopAutomatic()
@@ -35,6 +38,7 @@ const { hasFilledProgressBar } = require('./map-detector/screen-state');
 const { EndgameDetector, ROI: ENDGAME_ROI } = require('./map-detector/endgame-detector');
 const { LobbyClassifier } = require('./map-detector/lobby-classifier');
 const { DetectionStateMachine } = require('./map-detector/detection-state-machine');
+const { KeybindDetector } = require('./map-detector/keybind-detector');
 const { FALLBACK_REALMS } = require('./map-detector/fallback-realms');
 const { computeMapNameFolds, isRealRealmFolder } = require('./map-detector/realm-catalog');
 const { MAP_NAME_ROI } = require('./map-detector/rois');
@@ -105,6 +109,8 @@ class MapDetector {
         this._lobbyClassifier = null;
         /** @type {DetectionStateMachine|null} */
         this._stateMachine = null;
+        /** @type {KeybindDetector|null} keybind mode only (no state machine then) */
+        this._keybindDetector = null;
 
         /**
          * Bumped by startAutomatic()/stopAutomatic(). Callbacks wired into a state
@@ -234,7 +240,7 @@ class MapDetector {
     }
 
     _setupIPC() {
-        ipcMain.handle('map-detector-status', () => !!this._stateMachine);
+        ipcMain.handle('map-detector-status', () => !!(this._stateMachine || this._keybindDetector));
         ipcMain.handle('map-detector-reload-realms', () => this._loadRealmKeys());
         ipcMain.handle('map-detector-start-automatic', () => this.startAutomatic());
         ipcMain.handle('map-detector-stop-automatic', () => this.stopAutomatic());
@@ -328,21 +334,75 @@ class MapDetector {
             endgameEnabled: () => this.settings.get('endgameDetection') === true,
             idlePollMs: 1500,
             huntPollMs: 350,
+            // While the loading bar is still up the hunt only re-checks the bar, no OCR.
+            huntBarPollMs: 1000,
+            // After a hunt that found nothing (usually a false loading-bar positive)
+            // the next one reads less often until a map is confirmed again.
+            huntBackoffPollMs: 1000,
+            // The title shows in the intro right after the loading screen: OCR runs
+            // for this long after the bar was last seen.
+            huntOcrWindowMs: 20000,
             // Public-match loading screens wait for every player (including the killer) to
             // finish loading, so they can run well past a solo/custom-match's load time.
-            huntTimeoutMs: 45000,
+            // Waiting on the bar is cheap, so the whole hunt may last this long.
+            huntTimeoutMs: 120000,
             matchPollMs: 2500,
         });
         return this._stateMachine;
     }
 
-    /** Starts the always-on, low-cost automatic detection loop. Safe to call multiple times. */
+    /** @returns {'automatic'|'keybind'} */
+    _mode() {
+        return this.settings.get('detectionMode') === 'keybind' ? 'keybind' : 'automatic';
+    }
+
+    _ensureKeybindDetector() {
+        if (this._keybindDetector) return this._keybindDetector;
+        const generation = this._generation;
+        const live = () => generation === this._generation;
+        this._keybindDetector = new KeybindDetector({
+            captureFrame: () => this._captureDBD(),
+            recognizeMapText: async (frame) => this._recognizeMapText(frame),
+            onMapDetected: (detectionKey) => {
+                if (!live()) return;
+                console.log(`MapDetector: matched -> ${detectionKey}`);
+                this.mainWindow.send('show-map-command', detectionKey.replace(/'/g, '').trim());
+            },
+            onStatus: (status) => {
+                if (live()) this.mainWindow.send('map-detector-keybind-status', status);
+            },
+            onError: (err) => {
+                if (live()) this._sendModelError(err);
+            },
+            pollMs: 400,
+            burstMs: 8000,
+        });
+        return this._keybindDetector;
+    }
+
+    /** Hotkey callback (hotkeys.js): one burst of reads, only in keybind mode. */
+    triggerKeybindDetection() {
+        if (!this._keybindDetector) {
+            console.log(`MapDetector: detect-map key pressed, ignored (${this._stateMachine ? 'automatic mode' : 'detection is off'})`);
+            return;
+        }
+        this._keybindDetector.trigger();
+    }
+
+    /**
+     * Starts detection in the configured mode: the always-on, low-cost
+     * automatic loop, or the idle keybind detector. Safe to call multiple times.
+     */
     async startAutomatic() {
         // stopAutomatic() bumps the generation, so everything wired up from here
         // on belongs to this run only.
         const generation = this._generation;
-        const sm = await this._ensureStateMachine();
-        sm.start();
+        if (this._mode() === 'keybind') {
+            this._ensureKeybindDetector().start();
+        } else {
+            const sm = await this._ensureStateMachine();
+            sm.start();
+        }
         // Warm the models up in parallel with the loop: a first run downloads them,
         // and the loop's own OCR call would otherwise wait on the same download
         // while holding up the settings UI.
@@ -366,6 +426,8 @@ class MapDetector {
         this._generation++;
         if (this._stateMachine) this._stateMachine.stop();
         this._stateMachine = null;
+        if (this._keybindDetector) this._keybindDetector.stop();
+        this._keybindDetector = null;
         this._endgameDetector = null;
         this._lobbyClassifier = null;
         this._dbdWindow = null;

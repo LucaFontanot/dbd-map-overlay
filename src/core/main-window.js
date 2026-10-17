@@ -3,7 +3,7 @@ const path = require("path");
 const {autoUpdater} = require("electron-updater");
 const fs = require("fs");
 const { imageSize } = require('image-size')
-const { computeOverlayPosition, overlayAlign, rotatedSize } = require('./overlay-position');
+const { computeOverlayPosition, overlayAlign, overlayArea, rotatedSize } = require('./overlay-position');
 const { safeJoin, lockDownWebContents } = require('./utils');
 const { securePreferences, loadPage } = require('./renderer-pages');
 const isWayland = require('./is-wayland');
@@ -153,7 +153,7 @@ class MainWindow {
         const {x, y} = draggable
             ? {x: settings.get('overlayX') || 0, y: settings.get('overlayY') || 0}
             : computeOverlayPosition({
-                workArea: selectedDisplay.workArea,
+                workArea: overlayArea(selectedDisplay, {platform: process.platform, displayCount: displays.length}),
                 overlayWidth: rotated.width,
                 overlayHeight: rotated.height,
                 position: settings.get('position'),

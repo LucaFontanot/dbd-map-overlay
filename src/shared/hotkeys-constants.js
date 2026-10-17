@@ -22,6 +22,14 @@ const SYSTEM_HOTKEY_DEFS = {
         defaultAccelerator: 'CommandOrControl+R',
         description: 'Rotate Map by 90 degrees',
         action: 'rotate-map'
+    },
+    'detect-map': {
+        id: 'detect-map',
+        // Not Ctrl/Shift+key: Ctrl (crouch) and Shift (sprint) are held in game,
+        // and DBD binds no F-key
+        defaultAccelerator: 'F8',
+        description: 'Detect map now (keybind detection mode)',
+        action: 'detect-map'
     }
 };
 
@@ -32,7 +40,8 @@ const SYSTEM_HOTKEY_DEFS = {
 const ACTION_TO_SETTING_KEY = {
     'check-lobby': 'hotkeyCheckLobby',
     'toggle-map': 'hotkeyToggleMap',
-    'rotate-map': 'hotkeyRotateMap'
+    'rotate-map': 'hotkeyRotateMap',
+    'detect-map': 'hotkeyDetectMap'
 };
 
 /**

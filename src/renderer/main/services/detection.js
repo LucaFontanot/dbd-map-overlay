@@ -2,6 +2,7 @@
 import {reactive} from 'vue';
 import {dbd} from './bridge';
 import {settings} from './settings';
+import {notify} from './ui';
 
 const state = reactive({
     // {state: 'downloading'|'ready'|'error', code?, message}
@@ -34,6 +35,22 @@ export const detection = {
                 }, 4000);
             }
         });
+        // Keybind mode: feedback for the detect-map key, the user is in game
+        dbd.on('map-detector-keybind-status', (status) => {
+            if (!status) return;
+            if (status.state === 'scanning') notify('Detecting map…', 'info', 3000);
+            else if (status.state === 'not-found') notify(`No map detected: ${status.reason || 'no map title seen'}`, 'warning');
+        });
+    },
+
+    get mode() {
+        return settings.get('detectionMode') === 'keybind' ? 'keybind' : 'automatic';
+    },
+
+    /** Switching mode rebuilds the running detector (state machine ↔ keybind). */
+    async setMode(mode) {
+        await settings.set('detectionMode', mode);
+        await restartIfRunning();
     },
 
     get enabled() {

@@ -31,9 +31,26 @@ class DetectionStateMachine {
         // this, a phantom cycle (false loading-screen positive -> hunt timeout ->
         // false endgame positive) wipes a map the user picked by hand.
         this._detectorOwnsOverlay = false;
+
+        // Consecutive ticks that saw a loading bar. A single sighting is only a
+        // candidate: HUNTING starts after barConfirmTicks in a row.
+        this._barSightings = 0;
+
+        // The last hunt timed out without a map (usually a false loading-bar
+        // positive: a repair/heal bar in a dark scene, the Quests tab). The next
+        // hunt reads at huntBackoffPollMs until one confirms a map again.
+        this._lastHuntFailed = false;
     }
 
     get state() { return this._state; }
+
+    /** @returns {boolean} whether this tick's bar sighting completes the streak needed to start a hunt */
+    _confirmBar() {
+        this._barSightings++;
+        if (this._barSightings < (this.deps.barConfirmTicks ?? 2)) return false;
+        this._barSightings = 0;
+        return true;
+    }
 
     /** The user set or hid a map themselves -- whatever is on the overlay is
      *  no longer the detector's to clear when the match ends. */
@@ -55,6 +72,7 @@ class DetectionStateMachine {
         this._running = false;
         this._generation++;
         this._state = STATE.IDLE;
+        this._barSightings = 0;
     }
 
     /** @returns {boolean} whether the loop that captured `generation` is still the live one */
@@ -86,10 +104,15 @@ class DetectionStateMachine {
         if (frame && this._live(generation)) {
             if (await this.deps.hasFilledProgressBar(frame)) {
                 if (!this._live(generation)) return;
-                console.log('DetectionStateMachine: IDLE -> HUNTING (loading screen detected)');
-                this._state = STATE.HUNTING;
+                if (this._confirmBar()) {
+                    console.log('DetectionStateMachine: IDLE -> HUNTING (loading screen detected)');
+                    this._state = STATE.HUNTING;
+                    return;
+                }
+                await sleep(this.deps.idlePollMs);
                 return;
             }
+            this._barSightings = 0;
             // Remember whether the lobby looks custom, for detectInCustoms. The
             // flag is only read when detection in customs is off, so skip the
             // roster OCR pass (every idle tick) when it is on.
@@ -113,42 +136,66 @@ class DetectionStateMachine {
         }
         this._skipMatchActive = false;
 
+        // The game prints the map title in the intro that follows the loading
+        // screen, never on the loading screen itself. While the bar is still up
+        // the hunt only re-checks the bar (cheap) instead of running OCR, and the
+        // OCR window (huntOcrWindowMs) counts from the last bar sighting. A false
+        // positive (repair/heal bar in a dark scene, the Quests tab) therefore
+        // costs at most one OCR window once the bar goes away, not a full
+        // huntTimeoutMs of OCR. huntTimeoutMs caps the whole hunt.
         const startedAt = Date.now();
         const deadline = startedAt + this.deps.huntTimeoutMs;
+        const ocrWindowMs = this.deps.huntOcrWindowMs ?? this.deps.huntTimeoutMs;
+        const barPollMs = this.deps.huntBarPollMs ?? this.deps.huntPollMs;
+        const ocrPollMs = this._lastHuntFailed ? (this.deps.huntBackoffPollMs ?? this.deps.huntPollMs) : this.deps.huntPollMs;
+        let lastBarAt = startedAt;
+        let ocrReads = 0;
         let pendingKey = null;
         let lastHeartbeatAt = startedAt;
-        console.log(`DetectionStateMachine: HUNTING started (timeout ${this.deps.huntTimeoutMs}ms, polling every ${this.deps.huntPollMs}ms)`);
+        console.log(`DetectionStateMachine: HUNTING started (timeout ${this.deps.huntTimeoutMs}ms, OCR window ${ocrWindowMs}ms after the loading bar, OCR every ${ocrPollMs}ms${this._lastHuntFailed ? ' -- slowed down, the last hunt found no map' : ''})`);
 
-        while (this._live(generation) && this._state === STATE.HUNTING && Date.now() < deadline) {
+        while (this._live(generation) && this._state === STATE.HUNTING && Date.now() < Math.min(deadline, lastBarAt + ocrWindowMs)) {
+            let pollMs = ocrPollMs;
             const frame = await this.deps.captureFrame();
             if (frame && this._live(generation)) {
-                const result = await this.deps.recognizeMapText(frame);
+                const loading = await this.deps.hasFilledProgressBar(frame);
                 if (!this._live(generation)) return;
-                if (result) {
-                    const key = result.realm ? `${result.realm}/${result.map}` : result.map;
-                    if (key === pendingKey) {
-                        console.log(`DetectionStateMachine: HUNTING confirmed "${key}" after ${Date.now() - startedAt}ms (2 consecutive matching reads) -> MATCH_ACTIVE`);
-                        this.deps.onMapDetected(key);
-                        this._detectorOwnsOverlay = true;
-                        this._matchSeenBright = false;
-                        this._endgameSeen = false;
-                        this._state = STATE.MATCH_ACTIVE;
-                        return;
+                if (loading) {
+                    lastBarAt = Date.now();
+                    pendingKey = null;
+                    pollMs = barPollMs;
+                } else {
+                    ocrReads++;
+                    const result = await this.deps.recognizeMapText(frame);
+                    if (!this._live(generation)) return;
+                    if (result) {
+                        const key = result.realm ? `${result.realm}/${result.map}` : result.map;
+                        if (key === pendingKey) {
+                            console.log(`DetectionStateMachine: HUNTING confirmed "${key}" after ${Date.now() - startedAt}ms (2 consecutive matching reads) -> MATCH_ACTIVE`);
+                            this.deps.onMapDetected(key);
+                            this._detectorOwnsOverlay = true;
+                            this._matchSeenBright = false;
+                            this._endgameSeen = false;
+                            this._lastHuntFailed = false;
+                            this._state = STATE.MATCH_ACTIVE;
+                            return;
+                        }
+                        console.log(`DetectionStateMachine: HUNTING candidate "${key}" (needs one more matching read to confirm)`);
+                        pendingKey = key;
                     }
-                    console.log(`DetectionStateMachine: HUNTING candidate "${key}" (needs one more matching read to confirm)`);
-                    pendingKey = key;
                 }
             }
             const now = Date.now();
             if (now - lastHeartbeatAt >= 2000) {
-                console.log(`DetectionStateMachine: HUNTING still running -- ${now - startedAt}ms elapsed of ${this.deps.huntTimeoutMs}ms timeout, no confirmed match yet`);
+                console.log(`DetectionStateMachine: HUNTING still running -- ${now - startedAt}ms elapsed, ${ocrReads} OCR read(s), loading bar last seen ${now - lastBarAt}ms ago, no confirmed match yet`);
                 lastHeartbeatAt = now;
             }
-            await sleep(this.deps.huntPollMs);
+            await sleep(pollMs);
         }
 
         if (this._live(generation) && this._state === STATE.HUNTING) {
-            console.log(`DetectionStateMachine: HUNTING timed out after ${Date.now() - startedAt}ms with no confirmed map -> MATCH_ACTIVE anyway (will keep watching for the match to end)`);
+            console.log(`DetectionStateMachine: HUNTING timed out after ${Date.now() - startedAt}ms (${ocrReads} OCR read(s)) with no confirmed map -> MATCH_ACTIVE anyway (will keep watching for the match to end)`);
+            this._lastHuntFailed = true;
             this._matchSeenBright = false;
             this._endgameSeen = false;
             this._state = STATE.MATCH_ACTIVE;
@@ -208,7 +255,10 @@ class DetectionStateMachine {
             const loadingScreen = await this.deps.hasFilledProgressBar(frame);
             if (!this._live(generation)) return;
             if (loadingScreen) {
-                if (this._matchSeenBright) {
+                // One sighting is only a candidate (_confirmBar): a dark scene
+                // with an action bar passes a single check far more often than
+                // a run of them.
+                if (this._matchSeenBright && this._confirmBar()) {
                     // A dark scene with an action bar (repair/heal/unhook) at the
                     // bottom can pass for a loading bar; with end-of-match
                     // detection off this only starts a hunt and never clears the map.
@@ -224,6 +274,7 @@ class DetectionStateMachine {
             } else {
                 // Real gameplay seen, so a later bar sighting is a genuinely new loading screen.
                 this._matchSeenBright = true;
+                this._barSightings = 0;
             }
         }
         await sleep(this.deps.matchPollMs);

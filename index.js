@@ -24,6 +24,9 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
 } else {
 
     const {app, BrowserWindow, dialog} = require('electron')
+    // First, so the Debug log export also has the startup lines of every module.
+    const {installConsoleCapture, registerLogIpc} = require("./src/core/logs");
+    installConsoleCapture()
 
     // ONNX/Chromium route GLib messages through LOG(ERROR) (browser_main_loop.cc),
     // so every libvips call from sharp dumps pages of
@@ -79,6 +82,7 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
     }
 
     const settings = new Settings();
+    registerLogIpc(settings);
     const obsWindow = new ObsWindow();
     const overlayWindow = new OverlayWindow(settings);
     const mainWindow = new MainWindow(obsWindow, overlayWindow, settings);

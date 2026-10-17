@@ -27,9 +27,13 @@ const defaultConfig = {
     // Off by default: gameplay frames can pass for the end screen / a new
     // loading screen and wipe the map mid-match (see detection-state-machine.js)
     endgameDetection: false,
+    // 'keybind': no background tick, the detect-map hotkey runs one OCR burst
+    // (src/core/map-detector/keybind-detector.js)
+    detectionMode: 'automatic',
     hotkeyCheckLobby: 'CommandOrControl+P',
     hotkeyToggleMap: 'CommandOrControl+H',
-    hotkeyRotateMap: 'CommandOrControl+R'
+    hotkeyRotateMap: 'CommandOrControl+R',
+    hotkeyDetectMap: 'F8'
 };
 
 const isBool = (v) => typeof v === 'boolean';
@@ -57,6 +61,7 @@ const RENDERER_WRITABLE = {
     preferredCreator: isShortString,
     detectInCustoms: isBool,
     endgameDetection: isBool,
+    detectionMode: (v) => v === 'automatic' || v === 'keybind',
 };
 
 // Never leaves main: the lobby API runs here (src/core/api.js)

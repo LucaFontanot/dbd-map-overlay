@@ -30,6 +30,7 @@ const INVOKE = new Set([
     'get-system-hotkeys',
     'dialog:selectDirectory',
     'streamdeck:create',
+    'logs:save',
 ]);
 
 const SEND = new Set([
@@ -54,6 +55,7 @@ const RECEIVE = new Set([
     'external-map-command',
     'map-detector-clear',
     'map-detector-model-status',
+    'map-detector-keybind-status',
     'hotkey-pressed',
     'hotkey-updated',
     'system-hotkeys-updated',

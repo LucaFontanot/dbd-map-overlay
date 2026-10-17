@@ -40,6 +40,18 @@ function computeOverlayPosition({workArea, overlayWidth, overlayHeight, position
     };
 }
 
+// The rectangle the overlay is placed in. Normally the display's work area
+// (screen minus taskbar/panels). On Linux with several monitors that is not
+// trustworthy: under X11/XWayland Chromium derives it from the single
+// desktop-wide _NET_WORKAREA, so a panel strut on a shorter monitor cuts the
+// bottom off a taller one (1080p + 1440p side by side: bottom presets land
+// ~400 px above the real corner, issue #32). The game runs fullscreen over
+// the panels anyway, so the full display bounds are the right box there.
+function overlayArea(display, {platform, displayCount} = {}) {
+    if (platform === 'linux' && displayCount > 1 && display.bounds) return display.bounds;
+    return display.workArea || display.bounds;
+}
+
 // Which window edge the map hugs on each axis. On fractional display scaling
 // Electron rounds the window outward, so it comes out a pixel or two larger
 // than asked; a centered map would then never touch the edge it was snapped
@@ -67,4 +79,4 @@ function rotatedSize({width, height, rotation}) {
     };
 }
 
-module.exports = {computeOverlayPosition, overlayAlign, presetToGlide, rotatedSize};
+module.exports = {computeOverlayPosition, overlayAlign, overlayArea, presetToGlide, rotatedSize};

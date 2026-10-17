@@ -19,7 +19,7 @@
       </v-list-item>
       <v-list-item class="px-0">
         <v-list-item-title>Debug log</v-list-item-title>
-        <v-list-item-subtitle>Attach it when reporting a problem. It never contains your lobby token.</v-list-item-subtitle>
+        <v-list-item-subtitle>Saved to your Downloads folder. Attach it when reporting a problem. It never contains your lobby token.</v-list-item-subtitle>
         <template #append>
           <v-btn variant="tonal" prepend-icon="mdi-download" @click="download">Download</v-btn>
         </template>
@@ -30,7 +30,7 @@
 
 <script setup>
 import {settings} from '../../services/settings';
-import {downloadLogs} from '../../services/logger';
+import {saveLogs} from '../../services/logger';
 import {notify} from '../../services/ui';
 
 async function save(key, value) {
@@ -41,7 +41,12 @@ async function save(key, value) {
   }
 }
 
-function download() {
-  if (!downloadLogs()) notify('No log entries yet');
+async function download() {
+  try {
+    const file = await saveLogs();
+    notify(`Debug log saved to ${file}`);
+  } catch (e) {
+    notify('Could not save the debug log', 'error');
+  }
 }
 </script>

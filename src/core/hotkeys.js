@@ -37,6 +37,11 @@ class Hotkeys {
         this.settings = settings;
         let classInstance = this;
 
+        // detect-map is only registered in keybind mode (activeSystemHotkeys)
+        settings.on('change', (key) => {
+            if (key === 'detectionMode') classInstance.loadKeys();
+        });
+
         // --- Custom map hotkeys ---
         ipcMain.on('save-hotkeys', (event, settings) => {
             const { hotkey, mapkey, id: incomingId } = (settings && typeof settings === 'object') ? settings : {};
@@ -190,7 +195,19 @@ class Hotkeys {
     }
 
     /**
-     * Register the 3 system hotkeys from settings (with defaults fallback).
+     * The system hotkeys to register right now. detect-map only in keybind
+     * detection mode: a global shortcut swallows the key from the game, so it
+     * must not grab one (or shadow a custom map hotkey) for an unused feature.
+     * @returns {Object<string, string>} actionId → accelerator
+     */
+    activeSystemHotkeys() {
+        const result = this.getSystemHotkeys();
+        if (this.settings.get('detectionMode') !== 'keybind') delete result['detect-map'];
+        return result;
+    }
+
+    /**
+     * Register the system hotkeys from settings (with defaults fallback).
      */
     registerSystemHotkeys() {
         const win = this.mainWindow;
@@ -199,7 +216,7 @@ class Hotkeys {
             return;
         }
 
-        const systemHotkeys = this.getSystemHotkeys();
+        const systemHotkeys = this.activeSystemHotkeys();
         console.log("Registering system hotkeys…");
 
         // Map action IDs to the IPC events they should fire
@@ -209,7 +226,23 @@ class Hotkeys {
             'rotate-map': 'rotate-map'
         };
 
+        // Handled in main: the detector lives here, the renderer has nothing to do
+        const mainActions = {
+            'detect-map': () => win.mapDetector && win.mapDetector.triggerKeybindDetection(),
+        };
+
         for (const [actionId, accelerator] of Object.entries(systemHotkeys)) {
+            if (mainActions[actionId]) {
+                const ok = safeRegister(accelerator, () => {
+                    console.log(`${accelerator} pressed → ${actionId}`);
+                    mainActions[actionId]();
+                });
+                if (!ok) {
+                    console.warn(`Failed to register system hotkey "${accelerator}" (${actionId})`);
+                    win.sendUpdate(`Failed to register "${acceleratorToDisplay(accelerator)}"`);
+                }
+                continue;
+            }
             const ipcEvent = actionToIpc[actionId];
             if (!ipcEvent) continue;
 
@@ -234,7 +267,7 @@ class Hotkeys {
         const win = this.mainWindow;
         if (!win) return;
 
-        const systemAccelerators = new Set(Object.values(this.getSystemHotkeys()).map(canonicalAccelerator));
+        const systemAccelerators = new Set(Object.values(this.activeSystemHotkeys()).map(canonicalAccelerator));
 
         for (const [hotkey, { mapKey, id }] of Object.entries(hotkeys)) {
             // Skip if this accelerator is already used by a system hotkey

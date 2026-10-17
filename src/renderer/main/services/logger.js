@@ -1,3 +1,5 @@
+import {dbd} from './bridge';
+
 const debugLogEnabled = true; // Set to false to disable debug logging
 // Ring buffer: the app runs for hours, keep only the most recent entries
 const MAX_LOG_ENTRIES = 2000;
@@ -29,17 +31,11 @@ export function debugLog(...args) {
     if (logs.length > MAX_LOG_ENTRIES) logs.splice(0, logs.length - MAX_LOG_ENTRIES);
 }
 
-/** @returns {boolean} false when there is nothing to download */
-export function downloadLogs() {
-    if (logs.length === 0) return false;
-    const blob = new Blob([logs.join('\n')], {type: 'text/plain'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `debug_logs_${new Date().toISOString()}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    return true;
+/**
+ * Saves this window's log together with the main process one (detector, OCR,
+ * sync) into the Downloads folder and reveals the file.
+ * @returns {Promise<string>} the saved file path
+ */
+export function saveLogs() {
+    return dbd.invoke('logs:save', logs.join('\n'));
 }

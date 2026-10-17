@@ -1,6 +1,6 @@
 const {test} = require('node:test');
 const assert = require('node:assert');
-const {computeOverlayPosition, presetToGlide, rotatedSize} = require('../src/core/overlay-position');
+const {computeOverlayPosition, overlayArea, presetToGlide, rotatedSize} = require('../src/core/overlay-position');
 
 const workArea = {x: 0, y: 0, width: 1920, height: 1080};
 
@@ -102,4 +102,28 @@ test('overlayAlign hugs the snapped edges', () => {
     assert.deepStrictEqual(overlayAlign({position: "4", glideX: null, glideY: null}), {x: 'end', y: 'end'});
     assert.deepStrictEqual(overlayAlign({position: "2", glideX: 40, glideY: null}), {x: 'center', y: 'start'});
     assert.deepStrictEqual(overlayAlign({position: "1", glideX: 0, glideY: 0, draggable: true}), {x: 'center', y: 'center'});
+});
+
+// Issue #32: 1080p | 1440p | 1200p on KDE/XWayland. Chromium's X11 work area
+// for the 1440p display came out ~1036 px tall, so bottom presets floated.
+test('overlayArea uses full bounds on multi-monitor Linux', () => {
+    const display = {
+        bounds: {x: 1920, y: 0, width: 2560, height: 1440},
+        workArea: {x: 1920, y: 0, width: 2560, height: 1036}
+    };
+    assert.deepStrictEqual(overlayArea(display, {platform: 'linux', displayCount: 3}), display.bounds);
+    const {y} = computeOverlayPosition({
+        workArea: overlayArea(display, {platform: 'linux', displayCount: 3}),
+        overlayWidth: 320, overlayHeight: 320, position: "3", glideX: null, glideY: null
+    });
+    assert.strictEqual(y, 1440 - 320);
+});
+
+test('overlayArea keeps the work area on Windows and single-monitor Linux', () => {
+    const display = {
+        bounds: {x: 0, y: 0, width: 1920, height: 1080},
+        workArea: {x: 0, y: 0, width: 1920, height: 1040}
+    };
+    assert.deepStrictEqual(overlayArea(display, {platform: 'win32', displayCount: 3}), display.workArea);
+    assert.deepStrictEqual(overlayArea(display, {platform: 'linux', displayCount: 1}), display.workArea);
 });
