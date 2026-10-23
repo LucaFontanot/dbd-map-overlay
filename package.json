@@ -1,7 +1,7 @@
 {
   "name": "dbd-map",
   "desktopName": "dbd-map.desktop",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "Overlay for DBD maps",
   "main": "index.js",
   "author": "Luca <admin@lucaservers.com>",

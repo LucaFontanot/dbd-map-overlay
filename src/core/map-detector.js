@@ -384,6 +384,14 @@ class MapDetector {
     triggerKeybindDetection() {
         if (!this._keybindDetector) {
             console.log(`MapDetector: detect-map key pressed, ignored (${this._stateMachine ? 'automatic mode' : 'detection is off'})`);
+            // The key is registered by detectionMode alone: users in keybind mode
+            // with the Auto-detect switch off pressed it for matches with no feedback
+            if (!this._stateMachine) {
+                this.mainWindow.send('map-detector-keybind-status', {
+                    state: 'not-found',
+                    reason: 'Auto-detect is off, turn on the switch in the top bar',
+                });
+            }
             return;
         }
         this._keybindDetector.trigger();

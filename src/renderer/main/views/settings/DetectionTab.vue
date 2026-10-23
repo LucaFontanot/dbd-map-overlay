@@ -33,6 +33,7 @@
             <kbd>{{ acceleratorToDisplay(hotkeys.systemAccelerator('detect-map')) }}</kbd>
             while the map name is on screen at the start of the match (change it in Hotkeys).
             Pick a key the game doesn't use: the app takes it over.
+            Needs the Auto-detect switch in the top bar to be on.
           </template>
           <template v-else>
             Watches the screen for loading screens and reads the map name on its own.
@@ -41,6 +42,17 @@
         </div>
       </v-col>
     </v-row>
+
+    <!-- Users read "Auto-detect off" as "use the key instead": the key needs it on -->
+    <v-expand-transition>
+      <v-alert v-if="detection.mode === 'keybind' && !detection.enabled" type="warning" class="mt-5"
+               title="Auto-detect is off">
+        The detect key does nothing until you turn on the Auto-detect switch in the top bar.
+        <template #append>
+          <v-btn variant="tonal" @click="enableDetection">Turn on</v-btn>
+        </template>
+      </v-alert>
+    </v-expand-transition>
 
     <v-expand-transition>
       <v-alert v-if="status" :type="statusType" class="mt-5" :title="statusTitle">
@@ -120,6 +132,14 @@ async function setLanguage(lang) {
 async function setMode(mode) {
   try {
     await detection.setMode(mode);
+  } catch (e) {
+    notify(`Auto-detect: ${e.message}`, 'error');
+  }
+}
+
+async function enableDetection() {
+  try {
+    await detection.setEnabled(true);
   } catch (e) {
     notify(`Auto-detect: ${e.message}`, 'error');
   }
