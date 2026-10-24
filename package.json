@@ -35,7 +35,7 @@
         "rpm",
         "AppImage"
       ],
-      "category": "Games",
+      "category": "Game",
       "syncDesktopName": true
     },
     "win": {
