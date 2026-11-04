@@ -35,6 +35,24 @@ body.obs {
     background-color: #00ff00;
 }
 
+/* Browser Source: OBS supports real transparency, no chroma key needed */
+body.obs.browser {
+    background-color: transparent;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+/* Fill the source box, keep the map's own aspect ratio */
+body.obs.browser #map {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
 #map[hidden] {
     display: none;
 }

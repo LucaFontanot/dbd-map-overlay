@@ -39,6 +39,7 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
     }
 
     const ObsWindow = require("./src/core/obs-window");
+    const ObsServer = require("./src/core/obs-server");
     const MainWindow = require("./src/core/main-window");
     const OverlayWindow = require("./src/core/overlay-window");
     const Hotkeys = require("./src/core/hotkeys");
@@ -84,6 +85,9 @@ if (isWayland() && !process.argv.includes('--ozone-platform=x11')) {
     const settings = new Settings();
     registerLogIpc(settings);
     const obsWindow = new ObsWindow();
+    obsWindow.server = new ObsServer();
+    obsWindow.server.start();
+    app.on('before-quit', () => obsWindow.server.stop());
     const overlayWindow = new OverlayWindow(settings);
     const mainWindow = new MainWindow(obsWindow, overlayWindow, settings);
     const hotkeys = new Hotkeys(mainWindow, settings);
