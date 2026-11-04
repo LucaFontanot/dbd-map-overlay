@@ -33,6 +33,8 @@ class ObsWindow {
 
     send(event, ...data) {
         if (event === 'map-change' || event === 'map-hide') this.lastMapMessage = [event, ...data];
+        // Browser Source pages (src/core/obs-server.js) get the same messages
+        if (this.server) this.server.publish(event, ...data);
         if (this.window && !this.window.isDestroyed()) {
             this.window.webContents.send(event, ...data);
         }

@@ -13,6 +13,25 @@ function hide() {
     img.hidden = true;
 }
 
+// Loaded by an OBS Browser Source over http (no Electron preload): same
+// messages, delivered by Server-Sent Events from src/core/obs-server.js.
+const browserSource = !window.overlay;
+if (browserSource) {
+    document.body.classList.add('browser');
+    const listeners = {};
+    window.overlay = {
+        onMapChange: (fn) => { listeners.change = fn; },
+        onMapHide: (fn) => { listeners.hide = fn; },
+    };
+    const source = new EventSource('/events');
+    source.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.event === 'map-hide') return listeners.hide && listeners.hide();
+        const bytes = msg.image ? Uint8Array.from(atob(msg.image), (c) => c.charCodeAt(0)) : new Uint8Array(0);
+        if (listeners.change) listeners.change(bytes, msg.size);
+    };
+}
+
 window.overlay.onMapChange((bytes, size, opacity, draggable, rotation, layout) => {
     if (url !== null) {
         URL.revokeObjectURL(url);
@@ -26,7 +45,9 @@ window.overlay.onMapChange((bytes, size, opacity, draggable, rotation, layout) =
         img.src = url;
         img.hidden = false;
     }
-    img.style.width = `${size}px`;
+    // Browser Source: the map scales to the OBS source box (see overlay.css),
+    // the app's pixel size only applies to the Electron windows
+    if (!browserSource) img.style.width = `${size}px`;
     if (opacity !== undefined) img.style.opacity = opacity;
     img.style.transform = `rotate(${rotation || 0}deg)`;
     if (frame && layout) {
